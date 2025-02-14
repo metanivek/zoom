@@ -6,6 +6,7 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
+const Map = @import("map.zig").Map;
 
 const GameState = struct {
     quit: bool = false,
@@ -17,7 +18,22 @@ const GameState = struct {
         left: bool = false,
         right: bool = false,
         escape: bool = false,
+        debug: bool = false,
     } = .{},
+    map: *Map,
+
+    pub fn init(allocator: std.mem.Allocator) !GameState {
+        const map = try allocator.create(Map);
+        map.* = try Map.init(allocator);
+        return .{
+            .map = map,
+        };
+    }
+
+    pub fn deinit(self: *GameState, allocator: std.mem.Allocator) void {
+        self.map.deinit();
+        allocator.destroy(self.map);
+    }
 };
 
 // Target frame rate and time step
@@ -25,7 +41,16 @@ const FRAME_RATE: u32 = 60;
 const FIXED_DELTA_TIME: f32 = 1.0 / @as(f32, @floatFromInt(FRAME_RATE));
 const MAX_FRAME_TIME: f32 = 0.25; // Maximum time step (prevents spiral of death)
 
+// Movement constants
+const MOVE_SPEED: f32 = 200.0; // pixels per second
+const TURN_SPEED: f32 = 3.0; // radians per second
+
 pub fn main() !void {
+    // Initialize allocator
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
     // Initialize SDL
     if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
         std.debug.print("SDL2 initialization failed: {s}\n", .{c.SDL_GetError()});
@@ -54,7 +79,8 @@ pub fn main() !void {
     };
     defer c.SDL_DestroyRenderer(renderer);
 
-    var game_state = GameState{};
+    var game_state = try GameState.init(allocator);
+    defer game_state.deinit(allocator);
     var event: c.SDL_Event = undefined;
 
     var last_time: u64 = c.SDL_GetPerformanceCounter();
@@ -87,6 +113,11 @@ pub fn main() !void {
                         c.SDLK_LEFT => game_state.keyboard.left = is_down,
                         c.SDLK_RIGHT => game_state.keyboard.right = is_down,
                         c.SDLK_ESCAPE => game_state.keyboard.escape = is_down,
+                        c.SDLK_F1 => {
+                            if (is_down) {
+                                game_state.map.toggleDebug();
+                            }
+                        },
                         else => {},
                     }
                 },
@@ -101,7 +132,7 @@ pub fn main() !void {
         }
 
         // Render at whatever rate we can
-        render(renderer);
+        render(renderer, &game_state);
     }
 }
 
@@ -112,22 +143,48 @@ fn update(state: *GameState) void {
         return;
     }
 
-    // TODO: Add game state updates here
-    // Example debug output to show input state
-    if (state.keyboard.w) std.debug.print("Moving forward\n", .{});
-    if (state.keyboard.s) std.debug.print("Moving backward\n", .{});
-    if (state.keyboard.a) std.debug.print("Strafing left\n", .{});
-    if (state.keyboard.d) std.debug.print("Strafing right\n", .{});
-    if (state.keyboard.left) std.debug.print("Turning left\n", .{});
-    if (state.keyboard.right) std.debug.print("Turning right\n", .{});
+    // Update player rotation
+    if (state.keyboard.left) {
+        state.map.player.angle -= TURN_SPEED * FIXED_DELTA_TIME;
+    }
+    if (state.keyboard.right) {
+        state.map.player.angle += TURN_SPEED * FIXED_DELTA_TIME;
+    }
+
+    // Calculate movement vector based on player's angle
+    var dx: f32 = 0;
+    var dy: f32 = 0;
+
+    if (state.keyboard.w) {
+        dx += @cos(state.map.player.angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+        dy += @sin(state.map.player.angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+    }
+    if (state.keyboard.s) {
+        dx -= @cos(state.map.player.angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+        dy -= @sin(state.map.player.angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+    }
+    if (state.keyboard.a) {
+        const strafe_angle = state.map.player.angle - std.math.pi / 2.0;
+        dx += @cos(strafe_angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+        dy += @sin(strafe_angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+    }
+    if (state.keyboard.d) {
+        const strafe_angle = state.map.player.angle + std.math.pi / 2.0;
+        dx += @cos(strafe_angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+        dy += @sin(strafe_angle) * MOVE_SPEED * FIXED_DELTA_TIME;
+    }
+
+    // Try to move player with collision detection
+    state.map.tryMovePlayer(dx, dy);
 }
 
-fn render(renderer: *c.SDL_Renderer) void {
+fn render(renderer: *c.SDL_Renderer, state: *GameState) void {
     // Clear screen
     _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     _ = c.SDL_RenderClear(renderer);
 
-    // TODO: Add rendering code here
+    // Render map
+    state.map.render(renderer);
 
     // Present renderer
     c.SDL_RenderPresent(renderer);

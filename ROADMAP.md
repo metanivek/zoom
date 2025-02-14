@@ -7,13 +7,17 @@ Building a DOOM clone in Zig.
 - [x] Basic game loop implementation
   - [x] Fixed timestep
   - [x] Input handling
-- [ ] 2D map renderer (top-down view)
-  - [ ] Simple rectangle-based walls
-  - [ ] Player position indicator
-- [ ] Basic player movement
-  - [ ] Forward/backward movement
-  - [ ] Rotation
-  - [ ] Collision detection with walls
+- [x] 2D map renderer (top-down view)
+  - [x] Simple rectangle-based walls
+  - [x] Player position indicator
+- [x] Basic player movement
+  - [x] Forward/backward movement
+  - [x] Rotation
+  - [x] Collision detection with walls
+    - [x] Separation vector (MTV) based collision
+    - [x] Wall sliding
+    - [x] Debug visualization
+    - [ ] Fast movement edge cases (tunneling)
 
 ## Phase 2: Basic 3D Rendering
 - [ ] Raycasting implementation
