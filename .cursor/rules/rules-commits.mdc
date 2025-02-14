@@ -6,106 +6,14 @@ globs:
 
 Rules for creating and formatting git commits in the repository.
 
-<rule>
-name: commit_conventions
-description: Standards for writing commit messages and using git
-filters:
-  # Match git commit operations
-  - type: command
-    pattern: "git commit"
+Use [.commit-template](mdc:.commit-template) for the template for commit messages.
 
-actions:
-  - type: warn
-    message: "Before committing: 1) Run `git diff` to review changes 2) Use `git commit -a` to use the template"
+MUST:
+- Use conventional commits
+- Check diff before committing by running `git --no-pager diff HEAD`
+- Run `git commit -a` and let me author the commit
+- Suggest a commit message for me to use in the commit
 
-examples:
-  # Bad: Committing without reviewing changes
-  - input: |
-      git commit -m "message"
-      git commit
-
-  # Good: Review changes then commit with template
-  - input: |
-      git add .
-      git diff --staged  # Review staged changes first
-      git commit        # Template will be used automatically
-
-  - input: |
-      git diff # Review unstaged changes first
-      git commit -a # Add and commit with template
-
-guidelines: |
-  1. Always review changes before committing:
-     git diff --staged  # For staged changes
-     git diff          # For unstaged changes
-
-  2. Use the commit template (automatic):
-     git commit
-
-  3. Use conventional commits format:
-     - feat: new features
-     - fix: bug fixes
-     - chore: maintenance tasks
-     - docs: documentation only
-     - test: test-related changes
-     - refactor: code changes that neither fix bugs nor add features
-     - style: formatting, missing semicolons, etc.
-     - perf: performance improvements
-  
-  4. Title line format:
-     - Start with type: feat, fix, etc.
-     - Keep under 60 characters
-     - Use imperative mood ("add" not "added")
-     - No period at the end
-  
-  5. Multi-line commits:
-     - Leave blank line after title
-     - Use bullet points for details
-     - Wrap body at 72 characters
-     - Explain why, not just what
-  
-  6. Breaking changes:
-     - Mark with ! after type: feat!: or fix!:
-     - Explain in commit body
-
-metadata:
-  priority: high
-  version: 1.2
-</rule>
-
-## Examples
-
-❌ Don't do this:
-```bash
-# No \n in commit messages
-git commit -m "feat: add feature\n- detail 1\n- detail 2"
-
-# No cramming details in title
-git commit -m "feat: add feature which does this and that and more things too"
-
-# Don't commit without reviewing changes
-git commit
-```
-
-✅ Do this instead:
-```bash
-# First review your changes
-git diff --staged
-
-# Then commit with template (loads automatically)
-git commit
-
-# The template will guide you through:
-feat: add user authentication
-
-Why:
-To secure the application and manage user sessions properly.
-Changes reviewed:
-- Add JWT auth implementation in auth.zig (+150/-20)
-- Create user schema in schema.zig (+45/-0)
-- Update tests in auth_test.zig (+80/-10)
-
-- Implement JWT-based auth flow
-- Add password hashing with bcrypt
-- Include refresh token mechanism
-``` 
+NEVER:
+- Try to use `git commit -m`
+- Try to author the commit message and pass it to `git commit`. Ever.
