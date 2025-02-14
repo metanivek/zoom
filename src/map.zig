@@ -219,6 +219,10 @@ pub const Map = struct {
     }
 
     pub fn render(self: *const Map, renderer: *c.SDL_Renderer) void {
+        // Clear the screen with a black background
+        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        _ = c.SDL_RenderClear(renderer);
+
         // Draw walls
         for (self.walls.items) |*wall| {
             wall.render(renderer);

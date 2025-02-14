@@ -20,9 +20,11 @@ const GameState = struct {
         right: bool = false,
         escape: bool = false,
         debug: bool = false,
+        m: bool = false,
     } = .{},
     map: *Map,
     renderer3d: Renderer3D,
+    render_mode: enum { Mode2D, Mode3D } = .Mode3D,
 
     pub fn init(allocator: std.mem.Allocator, screen_width: u32, screen_height: u32) !GameState {
         const map = try allocator.create(Map);
@@ -124,6 +126,11 @@ pub fn main() !void {
                                 game_state.map.toggleDebug();
                             }
                         },
+                        c.SDLK_m => {
+                            if (is_down) {
+                                game_state.render_mode = if (game_state.render_mode == .Mode3D) .Mode2D else .Mode3D;
+                            }
+                        },
                         else => {},
                     }
                 },
@@ -137,8 +144,14 @@ pub fn main() !void {
             accumulator -= FIXED_DELTA_TIME;
         }
 
-        // Render the 3D view
-        game_state.renderer3d.render(renderer, game_state.map, game_state.map.player.position, game_state.map.player.angle);
+        // Render based on current mode
+        switch (game_state.render_mode) {
+            .Mode2D => game_state.map.render(renderer),
+            .Mode3D => game_state.renderer3d.render(renderer, game_state.map, game_state.map.player.position, game_state.map.player.angle),
+        }
+
+        // Present the rendered frame
+        c.SDL_RenderPresent(renderer);
     }
 }
 

@@ -60,18 +60,28 @@ pub const Renderer3D = struct {
         _ = c.SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
         _ = c.SDL_RenderClear(renderer);
 
-        // Draw ceiling and floor with solid colors
-        var y: i32 = 0;
-        while (y < @as(i32, @intCast(self.screen_height))) : (y += 1) {
-            if (y < @as(i32, @intCast(self.screen_height / 2))) {
-                // Ceiling (tan color: RGB 210, 180, 140)
-                _ = c.SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255);
-            } else {
-                // Floor (brown color: RGB 139, 69, 19)
-                _ = c.SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
-            }
-            _ = c.SDL_RenderDrawLine(renderer, 0, y, @intCast(self.screen_width), y);
-        }
+        // Draw ceiling and floor with rectangles
+        const half_height = @as(i32, @intCast(self.screen_height / 2));
+
+        // Draw ceiling (tan color: RGB 210, 180, 140)
+        _ = c.SDL_SetRenderDrawColor(renderer, 210, 180, 140, 255);
+        const ceiling_rect = c.SDL_Rect{
+            .x = 0,
+            .y = 0,
+            .w = @intCast(self.screen_width),
+            .h = half_height,
+        };
+        _ = c.SDL_RenderFillRect(renderer, &ceiling_rect);
+
+        // Draw floor (brown color: RGB 139, 69, 19)
+        _ = c.SDL_SetRenderDrawColor(renderer, 139, 69, 19, 255);
+        const floor_rect = c.SDL_Rect{
+            .x = 0,
+            .y = half_height,
+            .w = @intCast(self.screen_width),
+            .h = half_height,
+        };
+        _ = c.SDL_RenderFillRect(renderer, &floor_rect);
 
         // Calculate ray angles and cast rays
         const ray_angle_step = self.fov / @as(f32, @floatFromInt(self.num_rays));
@@ -118,9 +128,6 @@ pub const Renderer3D = struct {
                 _ = c.SDL_RenderDrawLine(renderer, @intCast(i), wall_top, @intCast(i), wall_bottom);
             }
         }
-
-        // Present the rendered frame
-        c.SDL_RenderPresent(renderer);
     }
 
     fn castRay(self: *const Renderer3D, game_map: *const Map, start: Vec2, dir: Vec2) ?f32 {
