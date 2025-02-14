@@ -11,7 +11,10 @@ Use [.commit-template](mdc:.commit-template) for the template for commit message
 MUST:
 - Use conventional commits
 - Check diff before committing by running `git --no-pager diff HEAD`
-- Run `git commit -a` and let me author the commit
+- Use the output of the diff as the basis for the suggested commit message
+- Keep commit titles to 60 characters or less
+- Make sure all files are staged before committing
+- Run `git commit` and let me author the commit
 - Suggest a commit message for me to use in the commit
 
 NEVER:
