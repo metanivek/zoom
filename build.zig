@@ -49,6 +49,29 @@ pub fn build(b: *std.Build) void {
     gen_textures.linkLibC();
     b.installArtifact(gen_textures);
 
+    // WAD reader executable
+    const wad_reader = b.addExecutable(.{
+        .name = "wad_reader",
+        .root_source_file = b.path("src/wad_reader.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(wad_reader);
+
+    // Test WAD generator executable
+    const gen_test_wad = b.addExecutable(.{
+        .name = "gen_test_wad",
+        .root_source_file = b.path("src/gen_test_wad.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(gen_test_wad);
+
+    // Add a step to generate test WAD
+    const gen_test_wad_step = b.step("gen-test-wad", "Generate test WAD file");
+    const gen_test_wad_run = b.addRunArtifact(gen_test_wad);
+    gen_test_wad_step.dependOn(&gen_test_wad_run.step);
+
     // Add a step to generate textures
     const gen_textures_step = b.step("gen-textures", "Generate wall textures");
     const gen_textures_run = b.addRunArtifact(gen_textures);

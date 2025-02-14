@@ -41,15 +41,17 @@ Building a DOOM clone in Zig.
   - [ ] Prevent getting stuck on corners
 
 ## Phase 3: WAD Loading
-- [ ] WAD file parser
-  - [ ] Directory structure
-  - [ ] Lump reading
-  - [ ] Error handling for malformed WADs
-- [ ] Map data loading
-  - [ ] Vertices
-  - [ ] Linedefs
-  - [ ] Sectors
-  - [ ] Things (player starts, items, etc)
+- [x] WAD file parser
+  - [x] Directory structure
+  - [x] Lump reading
+  - [x] Error handling for malformed WADs
+- [x] Map data loading
+  - [x] Vertices
+  - [x] Linedefs
+  - [x] Sidedefs
+  - [x] Sectors
+  - [x] Things (player starts, items, etc)
+  - [x] Basic test map generation
 - [ ] Texture loading from WAD
   - [ ] Palette handling
   - [ ] Texture composition
