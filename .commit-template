@@ -1,0 +1,31 @@
+# <type>: <subject>
+# |<---- Using a maximum of 60 characters ---->|
+
+# Why:
+# |<---- Try to limit each line to a maximum of 72 characters ---->|
+
+# Explain why this change is being made
+# |<---- Try to limit each line to a maximum of 72 characters ---->|
+
+# Provide links to any relevant tickets, articles or other resources
+# Example: Resolves: #123
+# See: #456, #789
+
+# --- COMMIT END ---
+# Type can be
+#   feat     (new feature)
+#   fix      (bug fix)
+#   refactor (refactoring code)
+#   style    (formatting, missing semicolons, etc; no code change)
+#   doc      (changes to documentation)
+#   test     (adding or refactoring tests; no production code change)
+#   chore    (updating grunt tasks etc; no production code change)
+#   perf     (performance improvements)
+# --------------------
+# Remember to:
+#   * Use the imperative mood in the subject line
+#   * Do not end the subject line with a period
+#   * Separate subject from body with a blank line
+#   * Use the body to explain what and why vs. how
+#   * Can use multiple lines with "-" for bullet points in body
+# -------------------- 
