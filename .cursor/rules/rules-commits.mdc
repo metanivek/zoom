@@ -1,0 +1,92 @@
+---
+description: Commit Conventions
+globs: 
+---
+# Commit Conventions
+
+Rules for creating and formatting git commits in the repository.
+
+<rule>
+name: commit_conventions
+description: Standards for writing commit messages and using git
+filters:
+  # Match git commit operations
+  - type: command
+    pattern: "git commit"
+
+actions:
+  - type: warn
+    message: "Ensure commit messages follow the conventional commits format and proper multi-line structure"
+
+examples:
+  # Bad: Using \n or single-line for multi-line commits
+  - input: |
+      git commit -m "feat: add feature\n- point 1\n- point 2"
+      git commit -m "feat: add feature - point 1 - point 2"
+
+  # Good: Using proper multi-line commit message format
+  - input: |
+      git commit
+      
+      # In editor:
+      feat: concise title under 60 characters
+      
+      - Bullet point providing more detail
+      - Another point of detail
+      - Any breaking changes noted here
+
+guidelines: |
+  1. Use conventional commits format:
+     - feat: new features
+     - fix: bug fixes
+     - chore: maintenance tasks
+     - docs: documentation only
+     - test: test-related changes
+     - refactor: code changes that neither fix bugs nor add features
+     - style: formatting, missing semicolons, etc.
+     - perf: performance improvements
+  
+  2. Title line format:
+     - Start with type: feat, fix, etc.
+     - Keep under 60 characters
+     - Use imperative mood ("add" not "added")
+     - No period at the end
+  
+  3. Multi-line commits:
+     - Always use git's commit editor (not -m with \n)
+     - Leave blank line after title
+     - Use bullet points for details
+     - Wrap body at 72 characters
+  
+  4. Breaking changes:
+     - Mark with ! after type: feat!: or fix!:
+     - Explain in commit body
+
+metadata:
+  priority: high
+  version: 1.0
+</rule>
+
+## Examples
+
+❌ Don't do this:
+```bash
+# No \n in commit messages
+git commit -m "feat: add feature\n- detail 1\n- detail 2"
+
+# No cramming details in title
+git commit -m "feat: add feature which does this and that and more things too"
+```
+
+✅ Do this instead:
+```bash
+# Use git commit without -m for multi-line messages
+git commit
+
+# In editor:
+feat: add user authentication
+
+- Implement JWT-based auth flow
+- Add password hashing with bcrypt
+- Include refresh token mechanism
+``` 
