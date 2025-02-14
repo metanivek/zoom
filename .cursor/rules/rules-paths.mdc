@@ -2,60 +2,30 @@
 description: Build paths
 globs: build.zig.zon
 ---
- # Paths Rule
+# Paths Rule
 
-When modifying `build.zig.zon`, NEVER modify the `.paths` field without explicit user permission. The `.paths` field is critical for package management and should only be changed when specifically requested by the user.
+Rules for the `.paths` field in `build.zig.zon`.
 
-<rule>
-name: paths_permission
-description: Always ask for permission before modifying .paths in build.zig.zon
-filters:
-  # Match build.zig.zon files
-  - type: file_glob
-    pattern: "**/build.zig.zon"
-  # Match content that looks like paths modifications
-  - type: content
-    pattern: "\\.paths\\s*=\\s*\\{[^}]*\\}"
+MUST:
+- Ask for explicit user permission before modifying
+- Verify new paths exist in repository
+- Keep existing paths unless asked to remove
 
-actions:
-  - type: warn
-    message: "STOP: Ask for explicit permission before modifying the .paths field in build.zig.zon"
+NEVER:
+- Make changes without user confirmation
+- Add paths that don't exist
 
-examples:
-  # Bad: Modifying paths without permission
-  - input: |
-      .paths = .{
-          "build.zig",
-          "build.zig.zon",
-          "src",
-          "README.md",  // ❌ Adding without permission
-      },
-  # Good: Asking for permission first
-  - input: |
-      // ✅ "Would you like me to add any additional files to the .paths field in build.zig.zon?"
-      .paths = .{
-          "build.zig",
-          "build.zig.zon",
-          "src",
-      },
+## Example
 
-metadata:
-  priority: high
-  version: 1.0
-</rule>
-
-## Examples
-
-❌ Don't do this:
+❌ Don't:
 ```zig
 .paths = .{
     "build.zig",
     "build.zig.zon",
     "src",
-    "README.md",  // Adding files without permission
-    "ROADMAP.md", // Adding files without permission
+    "README.md",  // Adding without permission
 },
 ```
 
-✅ Do this instead:
-Ask the user: "Would you like me to add any additional files to the `.paths` field in `build.zig.zon`?"
+✅ Do:
+"Would you like me to add README.md to the `.paths` field?"
