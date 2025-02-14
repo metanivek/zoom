@@ -16,7 +16,7 @@ filters:
 
 actions:
   - type: warn
-    message: "Before committing: 1) Run 'git diff --staged' to review changes 2) Use 'git commit' to get the template"
+    message: "Before committing: 1) Run `git diff` to review changes 2) Use `git commit -a` to use the template"
 
 examples:
   # Bad: Committing without reviewing changes
@@ -26,8 +26,13 @@ examples:
 
   # Good: Review changes then commit with template
   - input: |
+      git add .
       git diff --staged  # Review staged changes first
       git commit        # Template will be used automatically
+
+  - input: |
+      git diff # Review unstaged changes first
+      git commit -a # Add and commit with template
 
 guidelines: |
   1. Always review changes before committing:

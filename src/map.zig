@@ -149,19 +149,50 @@ pub const Map = struct {
     pub fn init(allocator: std.mem.Allocator) !Map {
         var walls = std.ArrayList(Wall).init(allocator);
 
-        // Add some test walls to form a simple room
+        // Create a more complex map layout
         try walls.appendSlice(&[_]Wall{
-            // Outer walls
+            // Main outer walls
             .{ .start = .{ .x = 50, .y = 50 }, .end = .{ .x = 750, .y = 50 } }, // Top
             .{ .start = .{ .x = 750, .y = 50 }, .end = .{ .x = 750, .y = 550 } }, // Right
             .{ .start = .{ .x = 750, .y = 550 }, .end = .{ .x = 50, .y = 550 } }, // Bottom
             .{ .start = .{ .x = 50, .y = 550 }, .end = .{ .x = 50, .y = 50 } }, // Left
 
-            // Inner obstacle
-            .{ .start = .{ .x = 300, .y = 200 }, .end = .{ .x = 500, .y = 200 } },
-            .{ .start = .{ .x = 500, .y = 200 }, .end = .{ .x = 500, .y = 400 } },
-            .{ .start = .{ .x = 500, .y = 400 }, .end = .{ .x = 300, .y = 400 } },
-            .{ .start = .{ .x = 300, .y = 400 }, .end = .{ .x = 300, .y = 200 } },
+            // Room 1 (Top left)
+            .{ .start = .{ .x = 200, .y = 50 }, .end = .{ .x = 200, .y = 200 } },
+            .{ .start = .{ .x = 50, .y = 200 }, .end = .{ .x = 150, .y = 200 } },
+
+            // Room 2 (Top right)
+            .{ .start = .{ .x = 400, .y = 50 }, .end = .{ .x = 400, .y = 150 } },
+            .{ .start = .{ .x = 400, .y = 150 }, .end = .{ .x = 600, .y = 150 } },
+            .{ .start = .{ .x = 600, .y = 50 }, .end = .{ .x = 600, .y = 150 } },
+
+            // Central corridor
+            .{ .start = .{ .x = 200, .y = 300 }, .end = .{ .x = 600, .y = 300 } },
+            .{ .start = .{ .x = 200, .y = 300 }, .end = .{ .x = 200, .y = 400 } },
+            .{ .start = .{ .x = 600, .y = 300 }, .end = .{ .x = 600, .y = 400 } },
+
+            // Room 3 (Bottom right)
+            .{ .start = .{ .x = 500, .y = 400 }, .end = .{ .x = 500, .y = 550 } },
+            .{ .start = .{ .x = 600, .y = 400 }, .end = .{ .x = 750, .y = 400 } },
+
+            // Room 4 (Bottom left)
+            .{ .start = .{ .x = 50, .y = 400 }, .end = .{ .x = 150, .y = 400 } },
+            .{ .start = .{ .x = 150, .y = 400 }, .end = .{ .x = 150, .y = 550 } },
+
+            // Obstacles
+            // Small pillar in top right room
+            .{ .start = .{ .x = 450, .y = 70 }, .end = .{ .x = 500, .y = 70 } },
+            .{ .start = .{ .x = 500, .y = 70 }, .end = .{ .x = 500, .y = 120 } },
+            .{ .start = .{ .x = 500, .y = 120 }, .end = .{ .x = 450, .y = 120 } },
+            .{ .start = .{ .x = 450, .y = 120 }, .end = .{ .x = 450, .y = 70 } },
+
+            // L-shaped obstacle in bottom right room
+            .{ .start = .{ .x = 600, .y = 450 }, .end = .{ .x = 700, .y = 450 } },
+            .{ .start = .{ .x = 600, .y = 450 }, .end = .{ .x = 600, .y = 500 } },
+
+            // Small barrier in central corridor
+            .{ .start = .{ .x = 350, .y = 300 }, .end = .{ .x = 450, .y = 300 } },
+            .{ .start = .{ .x = 400, .y = 300 }, .end = .{ .x = 400, .y = 350 } },
         });
 
         return .{
