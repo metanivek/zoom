@@ -15,86 +15,52 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    // This creates a "module", which represents a collection of source files alongside
-    // some compilation options, such as optimization mode and linked system libraries.
-    // Every executable or library we compile will be based on one or more modules.
+    // Create a module for shared code
     const lib_mod = b.createModule(.{
-        // `root_source_file` is the Zig "entry point" of the module. If a module
-        // only contains e.g. external object files, you can make this `null`.
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // We will also create a module for our other entry point, 'main.zig'.
+    // Main game executable
     const exe_mod = b.createModule(.{
-        // `root_source_file` is the Zig "entry point" of the module. If a module
-        // only contains e.g. external object files, you can make this `null`.
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    // Modules can depend on one another using the `std.Build.Module.addImport` function.
-    // This is what allows Zig source code to use `@import("foo")` where 'foo' is not a
-    // file path. In this case, we set up `exe_mod` to import `lib_mod`.
     exe_mod.addImport("zoom_lib", lib_mod);
 
-    // Now, we will create a static library based on the module we created above.
-    // This creates a `std.Build.Step.Compile`, which is the build step responsible
-    // for actually invoking the compiler.
-    const lib = b.addLibrary(.{
-        .linkage = .static,
-        .name = "zoom",
-        .root_module = lib_mod,
-    });
-
-    // This declares intent for the library to be installed into the standard
-    // location when the user invokes the "install" step (the default step when
-    // running `zig build`).
-    b.installArtifact(lib);
-
-    // This creates another `std.Build.Step.Compile`, but this one builds an executable
-    // rather than a static library.
     const exe = b.addExecutable(.{
         .name = "zoom",
         .root_module = exe_mod,
     });
-
-    // Link with system SDL2
     exe.linkSystemLibrary("SDL2");
     exe.linkLibC();
-
-    // This declares intent for the executable to be installed into the
-    // standard location when the user invokes the "install" step (the default
-    // step when running `zig build`).
     b.installArtifact(exe);
 
-    // This *creates* a Run step in the build graph, to be executed when another
-    // step is evaluated that depends on it. The next line below will establish
-    // such a dependency.
+    // Texture generator executable
+    const gen_textures = b.addExecutable(.{
+        .name = "gen_textures",
+        .root_source_file = b.path("src/gen_textures.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    gen_textures.linkSystemLibrary("SDL2");
+    gen_textures.linkLibC();
+    b.installArtifact(gen_textures);
+
+    // Add a step to generate textures
+    const gen_textures_step = b.step("gen-textures", "Generate wall textures");
+    const gen_textures_run = b.addRunArtifact(gen_textures);
+    gen_textures_step.dependOn(&gen_textures_run.step);
+
+    // Run step for the game
     const run_cmd = b.addRunArtifact(exe);
-
-    // By making the run step depend on the install step, it will be run from the
-    // installation directory rather than directly from within the cache directory.
-    // This is not necessary, however, if the application depends on other installed
-    // files, this ensures they will be present and in the expected location.
     run_cmd.step.dependOn(b.getInstallStep());
-
-    // This allows the user to pass arguments to the application in the build
-    // command itself, like this: `zig build run -- arg1 arg2 etc`
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
-
-    // This creates a build step. It will be visible in the `zig build --help` menu,
-    // and can be selected like this: `zig build run`
-    // This will evaluate the `run` step rather than the default, which is "install".
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("run", "Run the game");
     run_step.dependOn(&run_cmd.step);
 
     // Creates a step for unit testing. This only builds the test executable

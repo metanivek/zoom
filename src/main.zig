@@ -8,6 +8,7 @@ const c = @cImport({
 });
 const Map = @import("map.zig").Map;
 const Renderer3D = @import("renderer.zig").Renderer3D;
+const TextureManager = @import("texture.zig").TextureManager;
 
 const GameState = struct {
     quit: bool = false,
@@ -25,17 +26,32 @@ const GameState = struct {
     map: *Map,
     renderer3d: Renderer3D,
     render_mode: enum { Mode2D, Mode3D } = .Mode3D,
+    texture_manager: *TextureManager,
 
     pub fn init(allocator: std.mem.Allocator, screen_width: u32, screen_height: u32) !GameState {
         const map = try allocator.create(Map);
         map.* = try Map.init(allocator);
+
+        const texture_manager = try allocator.create(TextureManager);
+        texture_manager.* = TextureManager.init(allocator);
+
+        // Load wall textures
+        try texture_manager.loadTexture("wall1", "assets/textures/wall1.bmp");
+        try texture_manager.loadTexture("wall2", "assets/textures/wall2.bmp");
+        try texture_manager.loadTexture("wall3", "assets/textures/wall3.bmp");
+        try texture_manager.loadTexture("bricks", "assets/textures/bricks.bmp");
+        try texture_manager.loadTexture("stripes", "assets/textures/stripes.bmp");
+
         return .{
             .map = map,
-            .renderer3d = Renderer3D.init(screen_width, screen_height),
+            .renderer3d = Renderer3D.init(screen_width, screen_height, texture_manager),
+            .texture_manager = texture_manager,
         };
     }
 
     pub fn deinit(self: *GameState, allocator: std.mem.Allocator) void {
+        self.texture_manager.deinit();
+        allocator.destroy(self.texture_manager);
         self.map.deinit();
         allocator.destroy(self.map);
     }

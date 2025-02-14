@@ -46,6 +46,7 @@ pub const Vec2 = struct {
 pub const Wall = struct {
     start: Vec2,
     end: Vec2,
+    texture_name: []const u8, // Name of the texture to use for this wall
 
     pub fn render(self: *const Wall, renderer: *c.SDL_Renderer) void {
         _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
@@ -149,50 +150,50 @@ pub const Map = struct {
     pub fn init(allocator: std.mem.Allocator) !Map {
         var walls = std.ArrayList(Wall).init(allocator);
 
-        // Create a more complex map layout
+        // Create a more complex map layout with textures
         try walls.appendSlice(&[_]Wall{
             // Main outer walls
-            .{ .start = .{ .x = 50, .y = 50 }, .end = .{ .x = 750, .y = 50 } }, // Top
-            .{ .start = .{ .x = 750, .y = 50 }, .end = .{ .x = 750, .y = 550 } }, // Right
-            .{ .start = .{ .x = 750, .y = 550 }, .end = .{ .x = 50, .y = 550 } }, // Bottom
-            .{ .start = .{ .x = 50, .y = 550 }, .end = .{ .x = 50, .y = 50 } }, // Left
+            .{ .start = .{ .x = 50, .y = 50 }, .end = .{ .x = 750, .y = 50 }, .texture_name = "bricks" }, // Top
+            .{ .start = .{ .x = 750, .y = 50 }, .end = .{ .x = 750, .y = 550 }, .texture_name = "wall2" }, // Right
+            .{ .start = .{ .x = 750, .y = 550 }, .end = .{ .x = 50, .y = 550 }, .texture_name = "bricks" }, // Bottom
+            .{ .start = .{ .x = 50, .y = 550 }, .end = .{ .x = 50, .y = 50 }, .texture_name = "wall2" }, // Left
 
             // Room 1 (Top left)
-            .{ .start = .{ .x = 200, .y = 50 }, .end = .{ .x = 200, .y = 200 } },
-            .{ .start = .{ .x = 50, .y = 200 }, .end = .{ .x = 150, .y = 200 } },
+            .{ .start = .{ .x = 200, .y = 50 }, .end = .{ .x = 200, .y = 200 }, .texture_name = "wall3" },
+            .{ .start = .{ .x = 50, .y = 200 }, .end = .{ .x = 150, .y = 200 }, .texture_name = "wall3" },
 
             // Room 2 (Top right)
-            .{ .start = .{ .x = 400, .y = 50 }, .end = .{ .x = 400, .y = 150 } },
-            .{ .start = .{ .x = 400, .y = 150 }, .end = .{ .x = 600, .y = 150 } },
-            .{ .start = .{ .x = 600, .y = 50 }, .end = .{ .x = 600, .y = 150 } },
+            .{ .start = .{ .x = 400, .y = 50 }, .end = .{ .x = 400, .y = 150 }, .texture_name = "wall2" },
+            .{ .start = .{ .x = 400, .y = 150 }, .end = .{ .x = 600, .y = 150 }, .texture_name = "bricks" },
+            .{ .start = .{ .x = 600, .y = 50 }, .end = .{ .x = 600, .y = 150 }, .texture_name = "wall2" },
 
             // Central corridor
-            .{ .start = .{ .x = 200, .y = 300 }, .end = .{ .x = 600, .y = 300 } },
-            .{ .start = .{ .x = 200, .y = 300 }, .end = .{ .x = 200, .y = 400 } },
-            .{ .start = .{ .x = 600, .y = 300 }, .end = .{ .x = 600, .y = 400 } },
+            .{ .start = .{ .x = 200, .y = 300 }, .end = .{ .x = 600, .y = 300 }, .texture_name = "bricks" },
+            .{ .start = .{ .x = 200, .y = 300 }, .end = .{ .x = 200, .y = 400 }, .texture_name = "wall2" },
+            .{ .start = .{ .x = 600, .y = 300 }, .end = .{ .x = 600, .y = 400 }, .texture_name = "wall2" },
 
             // Room 3 (Bottom right)
-            .{ .start = .{ .x = 500, .y = 400 }, .end = .{ .x = 500, .y = 550 } },
-            .{ .start = .{ .x = 600, .y = 400 }, .end = .{ .x = 750, .y = 400 } },
+            .{ .start = .{ .x = 500, .y = 400 }, .end = .{ .x = 500, .y = 550 }, .texture_name = "wall3" },
+            .{ .start = .{ .x = 600, .y = 400 }, .end = .{ .x = 750, .y = 400 }, .texture_name = "wall3" },
 
             // Room 4 (Bottom left)
-            .{ .start = .{ .x = 50, .y = 400 }, .end = .{ .x = 150, .y = 400 } },
-            .{ .start = .{ .x = 150, .y = 400 }, .end = .{ .x = 150, .y = 550 } },
+            .{ .start = .{ .x = 50, .y = 400 }, .end = .{ .x = 150, .y = 400 }, .texture_name = "wall3" },
+            .{ .start = .{ .x = 150, .y = 400 }, .end = .{ .x = 150, .y = 550 }, .texture_name = "wall3" },
 
             // Obstacles
             // Small pillar in top right room
-            .{ .start = .{ .x = 450, .y = 70 }, .end = .{ .x = 500, .y = 70 } },
-            .{ .start = .{ .x = 500, .y = 70 }, .end = .{ .x = 500, .y = 120 } },
-            .{ .start = .{ .x = 500, .y = 120 }, .end = .{ .x = 450, .y = 120 } },
-            .{ .start = .{ .x = 450, .y = 120 }, .end = .{ .x = 450, .y = 70 } },
+            .{ .start = .{ .x = 450, .y = 70 }, .end = .{ .x = 500, .y = 70 }, .texture_name = "wall2" },
+            .{ .start = .{ .x = 500, .y = 70 }, .end = .{ .x = 500, .y = 120 }, .texture_name = "wall2" },
+            .{ .start = .{ .x = 500, .y = 120 }, .end = .{ .x = 450, .y = 120 }, .texture_name = "wall2" },
+            .{ .start = .{ .x = 450, .y = 120 }, .end = .{ .x = 450, .y = 70 }, .texture_name = "wall2" },
 
             // L-shaped obstacle in bottom right room
-            .{ .start = .{ .x = 600, .y = 450 }, .end = .{ .x = 700, .y = 450 } },
-            .{ .start = .{ .x = 600, .y = 450 }, .end = .{ .x = 600, .y = 500 } },
+            .{ .start = .{ .x = 600, .y = 450 }, .end = .{ .x = 700, .y = 450 }, .texture_name = "bricks" },
+            .{ .start = .{ .x = 600, .y = 450 }, .end = .{ .x = 600, .y = 500 }, .texture_name = "bricks" },
 
             // Small barrier in central corridor
-            .{ .start = .{ .x = 350, .y = 300 }, .end = .{ .x = 450, .y = 300 } },
-            .{ .start = .{ .x = 400, .y = 300 }, .end = .{ .x = 400, .y = 350 } },
+            .{ .start = .{ .x = 350, .y = 300 }, .end = .{ .x = 450, .y = 300 }, .texture_name = "bricks" },
+            .{ .start = .{ .x = 400, .y = 300 }, .end = .{ .x = 400, .y = 350 }, .texture_name = "bricks" },
         });
 
         return .{

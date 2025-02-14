@@ -30,11 +30,11 @@ Building a DOOM clone in Zig.
   - [x] Basic solid colors
   - [ ] Distance-based shading
   - [ ] Proper perspective projection
-- [ ] Texture mapping
-  - [ ] UV coordinate calculation
-  - [ ] Simple texture loader
-  - [ ] Wall texturing
-  - [ ] Texture alignment and scaling
+- [x] Texture mapping
+  - [x] UV coordinate calculation
+  - [x] Simple texture loader
+  - [x] Wall texturing
+  - [x] Texture alignment and scaling
 - [x] View rotation and player perspective
 - [ ] Improved collision detection
   - [ ] Sliding along walls more smoothly
