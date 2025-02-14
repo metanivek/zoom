@@ -2,10 +2,14 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
+const doom_textures = @import("doom_textures.zig");
+const wad = @import("wad.zig");
 
 pub const TextureError = error{
     LoadError,
     InvalidFormat,
+    PlaypalError,
+    ColormapError,
 };
 
 pub const Texture = struct {
@@ -65,42 +69,76 @@ const TextureEntry = struct {
 };
 
 pub const TextureManager = struct {
-    textures: std.StringHashMap(TextureEntry),
+    textures: std.ArrayList(TextureEntry),
     allocator: std.mem.Allocator,
+    playpal: ?doom_textures.Playpal = null,
+    colormap: ?doom_textures.Colormap = null,
 
     pub fn init(allocator: std.mem.Allocator) TextureManager {
         return .{
-            .textures = std.StringHashMap(TextureEntry).init(allocator),
+            .textures = std.ArrayList(TextureEntry).init(allocator),
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *TextureManager) void {
-        var iterator = self.textures.iterator();
-        while (iterator.next()) |entry| {
-            entry.value_ptr.texture.deinit();
-            self.allocator.free(entry.value_ptr.name);
+        for (self.textures.items) |*entry| {
+            entry.texture.deinit();
+            self.allocator.free(entry.name);
         }
         self.textures.deinit();
+        if (self.playpal) |*pal| pal.deinit();
+        if (self.colormap) |*cmap| cmap.deinit();
+    }
+
+    pub fn loadFromWad(self: *TextureManager, wad_file: *wad.WadFile) !void {
+        // Load PLAYPAL
+        self.playpal = try doom_textures.Playpal.load(self.allocator, wad_file);
+        errdefer if (self.playpal) |*pal| pal.deinit();
+
+        // Load COLORMAP
+        self.colormap = try doom_textures.Colormap.load(self.allocator, wad_file);
+        errdefer if (self.colormap) |*cmap| cmap.deinit();
     }
 
     pub fn loadTexture(self: *TextureManager, name: []const u8, path: []const u8) !void {
-        const texture = try Texture.loadFromFile(self.allocator, path);
+        // Create owned copy of name
         const name_copy = try self.allocator.dupe(u8, name);
         errdefer self.allocator.free(name_copy);
 
-        const entry = TextureEntry{
+        // Load texture
+        var texture = try Texture.loadFromFile(self.allocator, path);
+        errdefer texture.deinit();
+
+        // Add to list
+        try self.textures.append(.{
             .name = name_copy,
             .texture = texture,
-        };
-
-        try self.textures.put(name_copy, entry);
+        });
     }
 
-    pub fn getTexture(self: *TextureManager, name: []const u8) ?*Texture {
-        if (self.textures.getPtr(name)) |entry| {
-            return &entry.texture;
+    pub fn getTexture(self: *const TextureManager, name: []const u8) ?*const Texture {
+        for (self.textures.items) |*entry| {
+            if (std.mem.eql(u8, entry.name, name)) {
+                return &entry.texture;
+            }
         }
         return null;
+    }
+
+    /// Convert a palette color to RGB using the current PLAYPAL
+    pub fn paletteToRgb(self: *const TextureManager, color_idx: u8) ![3]u8 {
+        if (self.playpal) |p| {
+            return p.getColor(0, color_idx); // Use first palette by default
+        }
+        return TextureError.PlaypalError;
+    }
+
+    /// Get a shaded palette color index using COLORMAP
+    pub fn getShade(self: *const TextureManager, color_idx: u8, light_level: u8) !u8 {
+        if (self.colormap) |cmap| {
+            return cmap.getShade(color_idx, light_level);
+        }
+        return TextureError.ColormapError;
     }
 };

@@ -9,6 +9,7 @@ const c = @cImport({
 const Map = @import("map.zig").Map;
 const Renderer3D = @import("renderer.zig").Renderer3D;
 const TextureManager = @import("texture.zig").TextureManager;
+const wad = @import("wad.zig");
 
 const GameState = struct {
     quit: bool = false,
@@ -27,6 +28,8 @@ const GameState = struct {
     renderer3d: Renderer3D,
     render_mode: enum { Mode2D, Mode3D } = .Mode3D,
     texture_manager: *TextureManager,
+    wad_file: ?*wad.WadFile = null,
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, screen_width: u32, screen_height: u32) !GameState {
         const map = try allocator.create(Map);
@@ -35,7 +38,20 @@ const GameState = struct {
         const texture_manager = try allocator.create(TextureManager);
         texture_manager.* = TextureManager.init(allocator);
 
-        // Load wall textures
+        // Try to load DOOM WAD file for textures
+        var wad_file: ?*wad.WadFile = null;
+        if (std.fs.cwd().access("doom1.wad", .{})) {
+            const wad_ptr = try allocator.create(wad.WadFile);
+            wad_ptr.* = try wad.WadFile.init(allocator, "doom1.wad");
+            wad_file = wad_ptr;
+
+            // Load PLAYPAL and COLORMAP
+            try texture_manager.loadFromWad(wad_ptr);
+        } else |_| {
+            std.debug.print("No DOOM WAD file found, using fallback textures\n", .{});
+        }
+
+        // Load wall textures (fallback or for testing)
         try texture_manager.loadTexture("wall1", "assets/textures/wall1.bmp");
         try texture_manager.loadTexture("wall2", "assets/textures/wall2.bmp");
         try texture_manager.loadTexture("wall3", "assets/textures/wall3.bmp");
@@ -46,14 +62,20 @@ const GameState = struct {
             .map = map,
             .renderer3d = Renderer3D.init(screen_width, screen_height, texture_manager),
             .texture_manager = texture_manager,
+            .wad_file = wad_file,
+            .allocator = allocator,
         };
     }
 
-    pub fn deinit(self: *GameState, allocator: std.mem.Allocator) void {
-        self.texture_manager.deinit();
-        allocator.destroy(self.texture_manager);
+    pub fn deinit(self: *GameState) void {
         self.map.deinit();
-        allocator.destroy(self.map);
+        self.allocator.destroy(self.map);
+        self.texture_manager.deinit();
+        self.allocator.destroy(self.texture_manager);
+        if (self.wad_file) |wad_ptr| {
+            wad_ptr.deinit();
+            self.allocator.destroy(wad_ptr);
+        }
     }
 };
 
@@ -104,7 +126,7 @@ pub fn main() !void {
     defer c.SDL_DestroyRenderer(renderer);
 
     var game_state = try GameState.init(allocator, SCREEN_WIDTH, SCREEN_HEIGHT);
-    defer game_state.deinit(allocator);
+    defer game_state.deinit();
     var event: c.SDL_Event = undefined;
 
     var last_time: u64 = c.SDL_GetPerformanceCounter();

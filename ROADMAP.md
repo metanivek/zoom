@@ -53,9 +53,25 @@ Building a DOOM clone in Zig.
   - [x] Things (player starts, items, etc)
   - [x] Basic test map generation
 - [ ] Texture loading from WAD
-  - [ ] Palette handling
-  - [ ] Texture composition
+  - [x] Palette handling (PLAYPAL)
+  - [x] COLORMAP handling
+  - [ ] Patch loading and management
+    - [ ] Patch header parsing
+    - [ ] Column data extraction
+    - [ ] Post data handling
+  - [ ] Texture composition from patches
+    - [ ] Column-based texture assembly
+    - [ ] Patch offset handling
+    - [ ] Transparent pixel handling
+  - [ ] Texture name directory (TEXTURE1/TEXTURE2)
+    - [ ] Parse texture definitions
+    - [ ] Handle patch lists
+    - [ ] Manage texture dimensions
+  - [ ] Flat loading for floors/ceilings
   - [ ] Animated textures
+    - [ ] Animation timing
+    - [ ] Frame management
+    - [ ] Switch textures
 - [ ] BSP tree implementation
   - [ ] BSP builder
   - [ ] Rendering using BSP
