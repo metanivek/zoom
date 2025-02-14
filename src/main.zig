@@ -7,6 +7,7 @@ const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
 const Map = @import("map.zig").Map;
+const Renderer3D = @import("renderer.zig").Renderer3D;
 
 const GameState = struct {
     quit: bool = false,
@@ -21,12 +22,14 @@ const GameState = struct {
         debug: bool = false,
     } = .{},
     map: *Map,
+    renderer3d: Renderer3D,
 
-    pub fn init(allocator: std.mem.Allocator) !GameState {
+    pub fn init(allocator: std.mem.Allocator, screen_width: u32, screen_height: u32) !GameState {
         const map = try allocator.create(Map);
         map.* = try Map.init(allocator);
         return .{
             .map = map,
+            .renderer3d = Renderer3D.init(screen_width, screen_height),
         };
     }
 
@@ -58,13 +61,16 @@ pub fn main() !void {
     }
     defer c.SDL_Quit();
 
+    const SCREEN_WIDTH = 800;
+    const SCREEN_HEIGHT = 600;
+
     // Create window
     const window = c.SDL_CreateWindow(
         "ZOOM",
         c.SDL_WINDOWPOS_CENTERED,
         c.SDL_WINDOWPOS_CENTERED,
-        800,
-        600,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT,
         c.SDL_WINDOW_SHOWN,
     ) orelse {
         std.debug.print("Window creation failed: {s}\n", .{c.SDL_GetError()});
@@ -79,7 +85,7 @@ pub fn main() !void {
     };
     defer c.SDL_DestroyRenderer(renderer);
 
-    var game_state = try GameState.init(allocator);
+    var game_state = try GameState.init(allocator, SCREEN_WIDTH, SCREEN_HEIGHT);
     defer game_state.deinit(allocator);
     var event: c.SDL_Event = undefined;
 
@@ -131,8 +137,8 @@ pub fn main() !void {
             accumulator -= FIXED_DELTA_TIME;
         }
 
-        // Render at whatever rate we can
-        render(renderer, &game_state);
+        // Render the 3D view
+        game_state.renderer3d.render(renderer, game_state.map, game_state.map.player.position, game_state.map.player.angle);
     }
 }
 
@@ -176,18 +182,6 @@ fn update(state: *GameState) void {
 
     // Try to move player with collision detection
     state.map.tryMovePlayer(dx, dy);
-}
-
-fn render(renderer: *c.SDL_Renderer, state: *GameState) void {
-    // Clear screen
-    _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    _ = c.SDL_RenderClear(renderer);
-
-    // Render map
-    state.map.render(renderer);
-
-    // Present renderer
-    c.SDL_RenderPresent(renderer);
 }
 
 /// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
