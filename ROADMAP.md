@@ -4,9 +4,9 @@ Building a DOOM clone in Zig.
 
 ## Phase 1: Basic Framework
 - [x] Window creation with SDL2
-- [ ] Basic game loop implementation
-  - [ ] Fixed timestep
-  - [ ] Input handling
+- [x] Basic game loop implementation
+  - [x] Fixed timestep
+  - [x] Input handling
 - [ ] 2D map renderer (top-down view)
   - [ ] Simple rectangle-based walls
   - [ ] Player position indicator
