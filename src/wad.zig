@@ -1,4 +1,5 @@
 const std = @import("std");
+const log = std.log;
 const doom_map = @import("doom_map.zig");
 
 /// WAD file header structure
@@ -115,10 +116,10 @@ pub const WadFile = struct {
     directory: []WadDirEntry,
     allocator: std.mem.Allocator,
 
-    /// Opens and loads a WAD file
-    pub fn init(allocator: std.mem.Allocator, path: []const u8) !WadFile {
+    /// Opens and loads a WAD file from a directory
+    pub fn initFromDir(allocator: std.mem.Allocator, dir: std.fs.Dir, path: []const u8) !WadFile {
         // Open the WAD file in binary mode
-        const file = try std.fs.cwd().openFile(path, .{ .mode = .read_only });
+        const file = try dir.openFile(path, .{ .mode = .read_only });
         errdefer file.close();
 
         // Check file size
@@ -131,19 +132,14 @@ pub const WadFile = struct {
         // Read the header
         const header = try WadHeader.read(file);
 
-        // Debug print the header identification
-        std.debug.print("WAD Header ID: '{s}' (bytes: {any})\n", .{ header.identification, header.identification });
-        std.debug.print("Number of lumps: {}\n", .{header.num_lumps});
-        std.debug.print("Directory pointer: 0x{X}\n", .{header.dir_pointer});
-
         if (!header.isValid()) {
-            std.debug.print("Invalid WAD header magic number\n", .{});
+            log.err("Invalid WAD header magic number", .{});
             return WadError.InvalidMagicNumber;
         }
 
         // Verify directory pointer is within file bounds
         if (header.dir_pointer >= file_size) {
-            std.debug.print("Directory pointer (0x{X}) beyond file size (0x{X})\n", .{
+            log.err("Directory pointer (0x{X}) beyond file size (0x{X})", .{
                 header.dir_pointer,
                 file_size,
             });
@@ -175,6 +171,11 @@ pub const WadFile = struct {
             .directory = directory,
             .allocator = allocator,
         };
+    }
+
+    /// Opens and loads a WAD file
+    pub fn init(allocator: std.mem.Allocator, path: []const u8) !WadFile {
+        return initFromDir(allocator, std.fs.cwd(), path);
     }
 
     /// Cleans up WAD file resources
@@ -311,79 +312,70 @@ test "WadDirEntry name handling" {
 
 test "Create test WAD file" {
     const testing = std.testing;
-    const tmp_dir = std.testing.tmpDir;
-    var tmp = tmp_dir.dir;
+    var tmp_dir = testing.tmpDir(.{});
+    defer tmp_dir.cleanup();
     const allocator = testing.allocator;
 
     // Create a test WAD file
     const test_wad_path = "test.wad";
     {
-        const file = try tmp.createFile(test_wad_path, .{});
+        const file = try tmp_dir.dir.createFile(test_wad_path, .{});
         defer file.close();
 
+        var writer = file.writer();
+
+        // Calculate offsets
+        const header_size = @sizeOf(WadHeader);
+        const dir_size = @sizeOf(WadDirEntry) * 2;
+        const dir_pointer = header_size;
+        const first_lump_pos = header_size + dir_size;
+        const second_lump_pos = first_lump_pos + 5;
+
         // Write header
-        const header = WadHeader{
-            .identification = "PWAD".*,
-            .num_lumps = 2,
-            .dir_pointer = @sizeOf(WadHeader),
-        };
-        _ = try file.write(std.mem.asBytes(&header));
+        try writer.writeAll("PWAD");
+        try writer.writeInt(u32, 2, .little); // num_lumps
+        try writer.writeInt(u32, dir_pointer, .little); // dir_pointer
 
         // Write directory entries
         const entries = [_]WadDirEntry{
             .{
-                .file_pos = @sizeOf(WadHeader) + @sizeOf(WadDirEntry) * 2,
+                .file_pos = first_lump_pos,
                 .size = 5,
                 .name = "FIRST\x00\x00\x00".*,
             },
             .{
-                .file_pos = @sizeOf(WadHeader) + @sizeOf(WadDirEntry) * 2 + 5,
+                .file_pos = second_lump_pos,
                 .size = 6,
-                .name = "SECOND\x00".*,
+                .name = "SECOND\x00\x00".*,
             },
         };
-        _ = try file.write(std.mem.sliceAsBytes(&entries));
+        _ = try writer.writeAll(std.mem.asBytes(&entries));
 
         // Write lump data
-        _ = try file.write("Hello");
-        _ = try file.write("World!");
+        _ = try writer.writeAll("HELLO");
+        _ = try writer.writeAll("WORLD!");
     }
 
-    // Test reading the WAD file
-    {
-        var wad_file = try WadFile.init(allocator, test_wad_path);
-        defer wad_file.deinit();
+    // Now read the WAD file
+    var wad_file = try WadFile.initFromDir(allocator, tmp_dir.dir, test_wad_path);
+    defer wad_file.deinit();
 
-        try testing.expect(!wad_file.header.isIWAD());
-        try testing.expect(wad_file.header.num_lumps == 2);
+    // Verify contents
+    try testing.expectEqual(@as(usize, 2), wad_file.directory.len);
+    try testing.expectEqualStrings("FIRST", wad_file.directory[0].getName());
+    try testing.expectEqualStrings("SECOND", wad_file.directory[1].getName());
 
-        // Test finding lumps
-        const first_lump = wad_file.findLump("FIRST") orelse return error.LumpNotFound;
-        try testing.expectEqualStrings("FIRST", first_lump.getName());
-        try testing.expect(first_lump.size == 5);
+    // Read lump data
+    const first_data = try wad_file.readLump(&wad_file.directory[0]);
+    defer allocator.free(first_data);
+    try testing.expectEqualStrings("HELLO", first_data);
 
-        const second_lump = wad_file.findLump("SECOND") orelse return error.LumpNotFound;
-        try testing.expectEqualStrings("SECOND", second_lump.getName());
-        try testing.expect(second_lump.size == 6);
-
-        // Test reading lump data
-        if (try wad_file.readLumpByName("FIRST")) |data| {
-            defer allocator.free(data);
-            try testing.expectEqualStrings("Hello", data);
-        } else {
-            return error.LumpDataNotFound;
-        }
-
-        if (try wad_file.readLumpByName("SECOND")) |data| {
-            defer allocator.free(data);
-            try testing.expectEqualStrings("World!", data);
-        } else {
-            return error.LumpDataNotFound;
-        }
-    }
+    const second_data = try wad_file.readLump(&wad_file.directory[1]);
+    defer allocator.free(second_data);
+    try testing.expectEqualStrings("WORLD!", second_data);
 
     // Clean up
-    try tmp.deleteFile(test_wad_path);
+    try tmp_dir.dir.deleteFile(test_wad_path);
 }
 
 test "WAD map loading" {

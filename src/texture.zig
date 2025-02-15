@@ -4,12 +4,14 @@ const c = @cImport({
 });
 const doom_textures = @import("doom_textures.zig");
 const wad = @import("wad.zig");
+const patch = @import("graphics/patch.zig");
 
 pub const TextureError = error{
     LoadError,
     InvalidFormat,
     PlaypalError,
     ColormapError,
+    PatchError,
 };
 
 pub const Texture = struct {
@@ -68,8 +70,14 @@ const TextureEntry = struct {
     texture: Texture,
 };
 
+const PatchEntry = struct {
+    name: []const u8,
+    patch: patch.Patch,
+};
+
 pub const TextureManager = struct {
     textures: std.ArrayList(TextureEntry),
+    patches: std.ArrayList(PatchEntry),
     allocator: std.mem.Allocator,
     playpal: ?doom_textures.Playpal = null,
     colormap: ?doom_textures.Colormap = null,
@@ -77,6 +85,7 @@ pub const TextureManager = struct {
     pub fn init(allocator: std.mem.Allocator) TextureManager {
         return .{
             .textures = std.ArrayList(TextureEntry).init(allocator),
+            .patches = std.ArrayList(PatchEntry).init(allocator),
             .allocator = allocator,
         };
     }
@@ -87,6 +96,13 @@ pub const TextureManager = struct {
             self.allocator.free(entry.name);
         }
         self.textures.deinit();
+
+        for (self.patches.items) |*entry| {
+            entry.patch.deinit();
+            self.allocator.free(entry.name);
+        }
+        self.patches.deinit();
+
         if (self.playpal) |*pal| pal.deinit();
         if (self.colormap) |*cmap| cmap.deinit();
     }
@@ -117,10 +133,35 @@ pub const TextureManager = struct {
         });
     }
 
+    pub fn loadPatch(self: *TextureManager, name: []const u8, data: []const u8) !void {
+        // Create owned copy of name
+        const name_copy = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_copy);
+
+        // Load patch
+        var loaded_patch = try patch.Patch.load(self.allocator, data);
+        errdefer loaded_patch.deinit();
+
+        // Add to list
+        try self.patches.append(.{
+            .name = name_copy,
+            .patch = loaded_patch,
+        });
+    }
+
     pub fn getTexture(self: *const TextureManager, name: []const u8) ?*const Texture {
         for (self.textures.items) |*entry| {
             if (std.mem.eql(u8, entry.name, name)) {
                 return &entry.texture;
+            }
+        }
+        return null;
+    }
+
+    pub fn getPatch(self: *const TextureManager, name: []const u8) ?*const patch.Patch {
+        for (self.patches.items) |*entry| {
+            if (std.mem.eql(u8, entry.name, name)) {
+                return &entry.patch;
             }
         }
         return null;

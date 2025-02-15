@@ -8,7 +8,8 @@ const c = @cImport({
 });
 const Map = @import("map.zig").Map;
 const Renderer3D = @import("renderer.zig").Renderer3D;
-const TextureManager = @import("texture.zig").TextureManager;
+const texture = @import("texture.zig");
+const TextureManager = texture.TextureManager;
 const wad = @import("wad.zig");
 
 const GameState = struct {
@@ -235,5 +236,14 @@ fn update(state: *GameState) void {
     state.map.tryMovePlayer(dx, dy);
 }
 
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("zoom_lib");
+test {
+    // Import all modules for testing
+    _ = @import("map.zig");
+    _ = @import("renderer.zig");
+    _ = @import("texture.zig");
+    _ = @import("wad.zig");
+    _ = @import("doom_textures.zig");
+    _ = @import("doom_map.zig");
+    _ = @import("graphics/patch.zig");
+    _ = @import("graphics/picture.zig");
+}

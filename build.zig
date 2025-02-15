@@ -15,24 +15,12 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create a module for shared code
-    const lib_mod = b.createModule(.{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // Main game executable
-    const exe_mod = b.createModule(.{
+    const exe = b.addExecutable(.{
+        .name = "zoom",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-    });
-    exe_mod.addImport("zoom_lib", lib_mod);
-
-    const exe = b.addExecutable(.{
-        .name = "zoom",
-        .root_module = exe_mod,
     });
     exe.linkSystemLibrary("SDL2");
     exe.linkLibC();
@@ -48,6 +36,18 @@ pub fn build(b: *std.Build) void {
     gen_textures.linkSystemLibrary("SDL2");
     gen_textures.linkLibC();
     b.installArtifact(gen_textures);
+
+    // Texture viewer executable
+    const texture_viewer = b.addExecutable(.{
+        .name = "texture_viewer",
+        .root_source_file = b.path("src/texture_viewer.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    texture_viewer.linkSystemLibrary("SDL2");
+    texture_viewer.linkSystemLibrary("SDL2_ttf");
+    texture_viewer.linkLibC();
+    b.installArtifact(texture_viewer);
 
     // WAD reader executable
     const wad_reader = b.addExecutable(.{
@@ -67,6 +67,18 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(gen_test_wad);
 
+    // Lump viewer executable
+    const lump_viewer = b.addExecutable(.{
+        .name = "lump_viewer",
+        .root_source_file = b.path("src/lump_viewer.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    lump_viewer.linkSystemLibrary("SDL2");
+    lump_viewer.linkSystemLibrary("SDL2_ttf");
+    lump_viewer.linkLibC();
+    b.installArtifact(lump_viewer);
+
     // Add a step to generate test WAD
     const gen_test_wad_step = b.step("gen-test-wad", "Generate test WAD file");
     const gen_test_wad_run = b.addRunArtifact(gen_test_wad);
@@ -76,6 +88,30 @@ pub fn build(b: *std.Build) void {
     const gen_textures_step = b.step("gen-textures", "Generate wall textures");
     const gen_textures_run = b.addRunArtifact(gen_textures);
     gen_textures_step.dependOn(&gen_textures_run.step);
+
+    // Add a step to run wad reader
+    const wad_reader_step = b.step("wad-reader", "Run WAD reader");
+    const wad_reader_run = b.addRunArtifact(wad_reader);
+    if (b.args) |args| {
+        wad_reader_run.addArgs(args);
+    }
+    wad_reader_step.dependOn(&wad_reader_run.step);
+
+    // Add a step to run texture viewer
+    const texture_viewer_step = b.step("view-textures", "Run texture viewer");
+    const texture_viewer_run = b.addRunArtifact(texture_viewer);
+    if (b.args) |args| {
+        texture_viewer_run.addArgs(args);
+    }
+    texture_viewer_step.dependOn(&texture_viewer_run.step);
+
+    // Add a step to run lump viewer
+    const lump_viewer_step = b.step("view-lump", "Run lump viewer");
+    const lump_viewer_run = b.addRunArtifact(lump_viewer);
+    if (b.args) |args| {
+        lump_viewer_run.addArgs(args);
+    }
+    lump_viewer_step.dependOn(&lump_viewer_run.step);
 
     // Run step for the game
     const run_cmd = b.addRunArtifact(exe);
@@ -88,22 +124,19 @@ pub fn build(b: *std.Build) void {
 
     // Creates a step for unit testing. This only builds the test executable
     // but does not run it.
-    const lib_unit_tests = b.addTest(.{
-        .root_module = lib_mod,
+    const unit_tests = b.addTest(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
     });
+    unit_tests.linkSystemLibrary("SDL2");
+    unit_tests.linkLibC();
 
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    const exe_unit_tests = b.addTest(.{
-        .root_module = exe_mod,
-    });
-
-    const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
+    const run_unit_tests = b.addRunArtifact(unit_tests);
 
     // Similar to creating the run step earlier, this exposes a `test` step to
     // the `zig build --help` menu, providing a way for the user to request
     // running the unit tests.
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_lib_unit_tests.step);
-    test_step.dependOn(&run_exe_unit_tests.step);
+    test_step.dependOn(&run_unit_tests.step);
 }

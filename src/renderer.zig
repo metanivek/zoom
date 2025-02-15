@@ -2,10 +2,10 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
+const texture = @import("texture.zig");
 const map = @import("map.zig");
 const Map = map.Map;
 const Vec2 = map.Vec2;
-const texture = @import("texture.zig");
 const TextureManager = texture.TextureManager;
 
 pub const Renderer3D = struct {
