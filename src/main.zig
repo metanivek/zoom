@@ -246,4 +246,5 @@ test {
     _ = @import("doom_map.zig");
     _ = @import("graphics/patch.zig");
     _ = @import("graphics/picture.zig");
+    _ = @import("graphics/sprite.zig");
 }

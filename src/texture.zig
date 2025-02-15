@@ -5,6 +5,7 @@ const c = @cImport({
 const doom_textures = @import("doom_textures.zig");
 const wad = @import("wad.zig");
 const patch = @import("graphics/patch.zig");
+const sprite = @import("graphics/sprite.zig");
 
 pub const TextureError = error{
     LoadError,
@@ -12,6 +13,7 @@ pub const TextureError = error{
     PlaypalError,
     ColormapError,
     PatchError,
+    SpriteError,
 };
 
 pub const Texture = struct {
@@ -75,9 +77,15 @@ const PatchEntry = struct {
     patch: patch.Patch,
 };
 
+const SpriteEntry = struct {
+    name: []const u8,
+    sprite: sprite.Sprite,
+};
+
 pub const TextureManager = struct {
     textures: std.ArrayList(TextureEntry),
     patches: std.ArrayList(PatchEntry),
+    sprites: std.ArrayList(SpriteEntry),
     allocator: std.mem.Allocator,
     playpal: ?doom_textures.Playpal = null,
     colormap: ?doom_textures.Colormap = null,
@@ -86,6 +94,7 @@ pub const TextureManager = struct {
         return .{
             .textures = std.ArrayList(TextureEntry).init(allocator),
             .patches = std.ArrayList(PatchEntry).init(allocator),
+            .sprites = std.ArrayList(SpriteEntry).init(allocator),
             .allocator = allocator,
         };
     }
@@ -102,6 +111,12 @@ pub const TextureManager = struct {
             self.allocator.free(entry.name);
         }
         self.patches.deinit();
+
+        for (self.sprites.items) |*entry| {
+            entry.sprite.deinit();
+            self.allocator.free(entry.name);
+        }
+        self.sprites.deinit();
 
         if (self.playpal) |*pal| pal.deinit();
         if (self.colormap) |*cmap| cmap.deinit();
@@ -149,6 +164,22 @@ pub const TextureManager = struct {
         });
     }
 
+    pub fn loadSprite(self: *TextureManager, name: []const u8, data: []const u8) !void {
+        // Create owned copy of name
+        const name_copy = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_copy);
+
+        // Load sprite
+        var loaded_sprite = try sprite.Sprite.load(self.allocator, data, name);
+        errdefer loaded_sprite.deinit();
+
+        // Add to list
+        try self.sprites.append(.{
+            .name = name_copy,
+            .sprite = loaded_sprite,
+        });
+    }
+
     pub fn getTexture(self: *const TextureManager, name: []const u8) ?*const Texture {
         for (self.textures.items) |*entry| {
             if (std.mem.eql(u8, entry.name, name)) {
@@ -162,6 +193,15 @@ pub const TextureManager = struct {
         for (self.patches.items) |*entry| {
             if (std.mem.eql(u8, entry.name, name)) {
                 return &entry.patch;
+            }
+        }
+        return null;
+    }
+
+    pub fn getSprite(self: *const TextureManager, name: []const u8) ?*const sprite.Sprite {
+        for (self.sprites.items) |*entry| {
+            if (std.mem.eql(u8, entry.name, name)) {
+                return &entry.sprite;
             }
         }
         return null;

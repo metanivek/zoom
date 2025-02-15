@@ -37,8 +37,8 @@ Refactoring the graphics system to better handle DOOM's various graphic formats 
 
 ## Phase 3: Sprites (Next)
 1. Create sprite format in `src/graphics/sprite.zig`
-   - [ ] Use composition with base `Picture` format
-   - [ ] Add sprite-specific metadata
+   - [x] Use composition with base `Picture` format
+   - [x] Add sprite-specific metadata
    - [ ] Frame sequence handling
    - [ ] Rotation state handling
    - [ ] Rendering capabilities

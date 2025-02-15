@@ -81,16 +81,19 @@ pub const Picture = struct {
 
         // Allocate columns
         var columns = try allocator.alloc(Column, @intCast(header.width));
-        errdefer {
-            for (columns) |*column| {
-                column.deinit();
-            }
-            allocator.free(columns);
-        }
+        errdefer allocator.free(columns);
 
         // Initialize columns
+        var initialized_columns: usize = 0;
+        errdefer {
+            for (columns[0..initialized_columns]) |*column| {
+                column.deinit();
+            }
+        }
+
         for (columns) |*column| {
             column.* = Column.init(allocator);
+            initialized_columns += 1;
         }
 
         // Calculate where picture data starts (after header and column offsets)
