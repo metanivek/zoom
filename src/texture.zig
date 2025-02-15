@@ -165,12 +165,20 @@ pub const TextureManager = struct {
     }
 
     pub fn loadSprite(self: *TextureManager, name: []const u8, data: []const u8) !void {
-        // Create owned copy of name
-        const name_copy = try self.allocator.dupe(u8, name);
+        // Create owned copy of name, but only up to the first non-printable character
+        var name_len: usize = 0;
+        for (name) |char| {
+            if (char == 0 or char < 32 or char > 126) break;
+            name_len += 1;
+        }
+        const name_copy = try self.allocator.dupe(u8, name[0..name_len]);
         errdefer self.allocator.free(name_copy);
 
         // Load sprite
-        var loaded_sprite = try sprite.Sprite.load(self.allocator, data, name);
+        var loaded_sprite = sprite.Sprite.load(self.allocator, data, name) catch |err| {
+            self.allocator.free(name_copy);
+            return err;
+        };
         errdefer loaded_sprite.deinit();
 
         // Add to list

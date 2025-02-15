@@ -12,6 +12,79 @@ pub const Error = error{
     InvalidSpriteName,
     InvalidFrameIndex,
     InvalidRotationState,
+    NoValidFrameFound,
+};
+
+/// Represents a sprite animation sequence for a specific rotation
+pub const SpriteAnimation = struct {
+    /// The sprite prefix (e.g. "TROO")
+    prefix: []const u8,
+    /// The current rotation (0-8)
+    rotation: u8,
+    /// The current frame index in the sequence
+    current_frame: usize = 0,
+    /// List of frame letters in sequence (e.g. ['A', 'B', 'C'])
+    frame_sequence: []const u8,
+    /// Whether the animation is currently playing
+    is_playing: bool = false,
+    /// Time of last frame change
+    last_frame_time: u64 = 0,
+    /// Frame duration in milliseconds
+    frame_duration: u64 = 100,
+
+    pub fn init(allocator: std.mem.Allocator, prefix: []const u8, rotation: u8, frame_sequence: []const u8) !SpriteAnimation {
+        return SpriteAnimation{
+            .prefix = try allocator.dupe(u8, prefix),
+            .rotation = rotation,
+            .frame_sequence = try allocator.dupe(u8, frame_sequence),
+        };
+    }
+
+    pub fn deinit(self: *SpriteAnimation, allocator: std.mem.Allocator) void {
+        allocator.free(self.prefix);
+        allocator.free(self.frame_sequence);
+    }
+
+    /// Get the current frame letter
+    pub fn getCurrentFrame(self: *const SpriteAnimation) u8 {
+        return self.frame_sequence[self.current_frame];
+    }
+
+    /// Advance to the next frame in the sequence
+    pub fn nextFrame(self: *SpriteAnimation) void {
+        if (self.is_playing) {
+            const current_time = c.SDL_GetTicks64();
+            if (current_time - self.last_frame_time >= self.frame_duration) {
+                self.current_frame = (self.current_frame + 1) % self.frame_sequence.len;
+                self.last_frame_time = current_time;
+            }
+        }
+    }
+
+    /// Start the animation
+    pub fn play(self: *SpriteAnimation) void {
+        if (!self.is_playing) {
+            self.is_playing = true;
+            self.last_frame_time = c.SDL_GetTicks64();
+        }
+    }
+
+    /// Stop the animation
+    pub fn stop(self: *SpriteAnimation) void {
+        self.is_playing = false;
+    }
+
+    /// Set a specific frame by index
+    pub fn setFrame(self: *SpriteAnimation, frame_index: usize) void {
+        if (frame_index < self.frame_sequence.len) {
+            self.current_frame = frame_index;
+        }
+    }
+
+    /// Set the frame duration (in milliseconds)
+    pub fn setFrameDuration(self: *SpriteAnimation, duration: u64) void {
+        self.frame_duration = duration;
+    }
 };
 
 /// Sprite name format can be either:
@@ -55,6 +128,11 @@ pub const SpriteName = struct {
             const rotation = name[5];
             if (rotation < '0' or rotation > '8') return error.InvalidSpriteName;
 
+            // For numeric frames, only allow rotation 0
+            if (frame >= '0' and frame <= '9' and rotation != '0') {
+                return error.InvalidSpriteName;
+            }
+
             return SpriteName{
                 .prefix = name[0..4].*,
                 .frame = frame,
@@ -63,28 +141,65 @@ pub const SpriteName = struct {
                 .mirror_rotation = 0,
             };
         }
-        // Handle mirrored case (8 characters, e.g. "TROOA2A8")
+        // Handle 8 character cases
         else {
-            // Validate frame (A-Z or 0-9)
+            // Validate first frame (A-Z or 0-9)
             const frame = name[4];
             if (!((frame >= 'A' and frame <= 'Z') or (frame >= '0' and frame <= '9'))) {
                 return error.InvalidSpriteName;
             }
 
-            // Validate rotations
+            // For numeric frames, only allow rotation 0
+            if (frame >= '0' and frame <= '9') {
+                if (name[5] != '0' or name[7] != '0') {
+                    return error.InvalidSpriteName;
+                }
+
+                return SpriteName{
+                    .prefix = name[0..4].*,
+                    .frame = frame,
+                    .rotation = 0,
+                    .is_mirrored = true,
+                    .mirror_rotation = 0,
+                };
+            }
+
+            // Validate first rotation
             const rotation1 = name[5];
-            const rotation2 = name[7];
-            if (rotation1 < '0' or rotation1 > '8' or rotation2 < '0' or rotation2 > '8') {
+            if (rotation1 < '0' or rotation1 > '8') {
                 return error.InvalidSpriteName;
             }
 
-            return SpriteName{
-                .prefix = name[0..4].*,
-                .frame = frame,
-                .rotation = rotation1 - '0',
-                .is_mirrored = true,
-                .mirror_rotation = rotation2 - '0',
-            };
+            // Check if this is a combined sprite name (e.g. "SPIDA1D1")
+            const frame2 = name[6];
+            if ((frame2 >= 'A' and frame2 <= 'Z') and name[7] >= '0' and name[7] <= '8') {
+                // This is a combined sprite name - treat it like a standard sprite using the first frame/rotation
+                return SpriteName{
+                    .prefix = name[0..4].*,
+                    .frame = frame,
+                    .rotation = rotation1 - '0',
+                    .is_mirrored = false,
+                    .mirror_rotation = 0,
+                };
+            }
+
+            // Handle mirrored case (e.g. "TROOA2A8")
+            if (frame2 == frame) {
+                const rotation2 = name[7];
+                if (rotation2 < '0' or rotation2 > '8') {
+                    return error.InvalidSpriteName;
+                }
+
+                return SpriteName{
+                    .prefix = name[0..4].*,
+                    .frame = frame,
+                    .rotation = rotation1 - '0',
+                    .is_mirrored = true,
+                    .mirror_rotation = rotation2 - '0',
+                };
+            }
+
+            return error.InvalidSpriteName;
         }
     }
 
@@ -113,17 +228,75 @@ pub const SpriteName = struct {
 pub const Sprite = struct {
     picture: Picture,
     name: SpriteName,
+    animation: ?SpriteAnimation = null,
 
     /// Load a sprite from WAD lump data and name
     pub fn load(allocator: std.mem.Allocator, data: []const u8, name: []const u8) !Sprite {
         return Sprite{
             .picture = try Picture.load(allocator, data),
             .name = try SpriteName.parse(name),
+            .animation = null,
         };
     }
 
     pub fn deinit(self: *Sprite) void {
+        if (self.animation) |*anim| {
+            anim.deinit(self.picture.allocator);
+        }
         self.picture.deinit();
+    }
+
+    /// Set up animation for this sprite
+    pub fn setupAnimation(self: *Sprite, frame_sequence: []const u8) !void {
+        if (self.animation) |*anim| {
+            anim.deinit(self.picture.allocator);
+        }
+        self.animation = try SpriteAnimation.init(
+            self.picture.allocator,
+            &self.name.prefix,
+            self.name.rotation,
+            frame_sequence,
+        );
+    }
+
+    /// Update the sprite's animation state
+    pub fn update(self: *Sprite) void {
+        if (self.animation) |*anim| {
+            anim.nextFrame();
+        }
+    }
+
+    /// Get the current frame letter
+    pub fn getCurrentFrame(self: *const Sprite) ?u8 {
+        return if (self.animation) |anim| anim.getCurrentFrame() else null;
+    }
+
+    /// Start the animation
+    pub fn play(self: *Sprite) void {
+        if (self.animation) |*anim| {
+            anim.play();
+        }
+    }
+
+    /// Stop the animation
+    pub fn stop(self: *Sprite) void {
+        if (self.animation) |*anim| {
+            anim.stop();
+        }
+    }
+
+    /// Set a specific frame by index
+    pub fn setFrame(self: *Sprite, frame_index: usize) void {
+        if (self.animation) |*anim| {
+            anim.setFrame(frame_index);
+        }
+    }
+
+    /// Set the frame duration (in milliseconds)
+    pub fn setFrameDuration(self: *Sprite, duration: u64) void {
+        if (self.animation) |*anim| {
+            anim.setFrameDuration(duration);
+        }
     }
 
     /// Get the pixel at the given coordinates

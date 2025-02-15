@@ -65,11 +65,12 @@ pub const WadDirEntry = struct {
 
     /// Gets the lump name as a string slice
     pub fn getName(self: *const WadDirEntry) []const u8 {
-        // Find the first zero or return full name if none found
+        // Find the first zero or non-printable character
         for (self.name, 0..) |c, i| {
-            if (c == 0) return self.name[0..i];
+            if (c == 0 or c < 32 or c > 126) return self.name[0..i];
         }
-        return &self.name;
+        // If no terminator found, return the first 8 bytes
+        return self.name[0..8];
     }
 
     /// Read a directory entry from a file
