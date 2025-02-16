@@ -1,5 +1,5 @@
 ---
-description: Commit Conventions
+description: Rules for creating and formatting git commits
 globs: 
 ---
 # Commit Conventions
@@ -12,11 +12,12 @@ MUST:
 - Use conventional commits
 - Check diff before committing by running `git --no-pager diff HEAD`
 - Use the output of the diff as the basis for the suggested commit message
-- Keep commit titles to 60 characters or less
-- Make sure all files are staged before committing
-- Run `git commit` and let me author the commit
+- Keep commit titles to 60 characters or less. Always!
+- Unless otherwise instructed make sure all files are staged before committing (`git add .`)
+- Suggest running `git commit` and let me author the commit
 - Suggest a commit message for me to use in the commit
+- Focus on the primary change from the diff when selecting the title
 
 NEVER:
-- Try to use `git commit -m`
-- Try to author the commit message and pass it to `git commit`. Ever.
+- Use `git commit -m`
+- Author the commit message and pass it to `git commit`. Ever.

@@ -1,5 +1,5 @@
 ---
-description: Cursor Rules Location
+description: Where to store Cursor rules and naming conventions
 globs: *.mdc
 ---
 # Cursor Rules Location

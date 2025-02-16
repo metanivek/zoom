@@ -248,4 +248,5 @@ test {
     _ = @import("graphics/picture.zig");
     _ = @import("graphics/sprite.zig");
     _ = @import("graphics/flat.zig");
+    _ = @import("graphics/composite_texture.zig");
 }

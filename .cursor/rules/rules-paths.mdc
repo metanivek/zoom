@@ -1,5 +1,5 @@
 ---
-description: Build paths
+description: Adding paths to build.zig.zon
 globs: build.zig.zon
 ---
 # Paths Rule

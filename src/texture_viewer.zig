@@ -140,9 +140,11 @@ pub fn main() !void {
     var quit = false;
     var view_mode = ViewMode.Patches;
     var current_patch: usize = 0;
+    var current_flat: usize = 0;
+    var current_texture: usize = 0;
     var current_palette: u8 = 0;
     var current_rotation: u8 = 0;
-    var current_flat: usize = 0;
+    var current_group: usize = 0;
 
     // Create sprite groups
     var sprite_groups = std.ArrayList(SpriteGroup).init(allocator);
@@ -154,7 +156,6 @@ pub fn main() !void {
     }
 
     // Group sprites by prefix
-    var current_group: usize = 0;
     {
         var prefix_map = std.StringHashMap(usize).init(allocator);
         defer prefix_map.deinit();
@@ -246,12 +247,16 @@ pub fn main() !void {
                                     current_flat -= 1;
                                 }
                             },
+                            .Textures => {
+                                if (texture_manager.composite_textures.items.len > 0 and current_texture > 0) {
+                                    current_texture -= 1;
+                                }
+                            },
                             .Palettes => {
                                 if (current_palette > 0) {
                                     current_palette -= 1;
                                 }
                             },
-                            else => {},
                         },
                         c.SDLK_RIGHT => switch (view_mode) {
                             .Patches => {
@@ -269,12 +274,16 @@ pub fn main() !void {
                                     current_flat += 1;
                                 }
                             },
+                            .Textures => {
+                                if (texture_manager.composite_textures.items.len > 0 and current_texture < texture_manager.composite_textures.items.len - 1) {
+                                    current_texture += 1;
+                                }
+                            },
                             .Palettes => {
                                 if (current_palette < 13) {
                                     current_palette += 1;
                                 }
                             },
-                            else => {},
                         },
                         c.SDLK_SPACE => switch (view_mode) {
                             .Sprites => {
@@ -498,7 +507,7 @@ pub fn main() !void {
                     }
 
                     // Find sprite with current rotation
-                    const current_sprite: ?*sprite.Sprite = blk: {
+                    const found_sprite: ?*sprite.Sprite = blk: {
                         // First, find any sprite with the current rotation to handle animation
                         var animation_sprite: ?*sprite.Sprite = null;
                         for (group.sprite_indices.items) |sprite_idx| {
@@ -549,7 +558,7 @@ pub fn main() !void {
                         break :blk animation_sprite; // Fall back to the animation sprite if no exact match
                     };
 
-                    if (current_sprite) |sprite_obj| {
+                    if (found_sprite) |sprite_obj| {
                         // Render sprite
                         const surface = sprite_obj.render(&texture_manager.playpal.?, current_palette, current_rotation) catch |err| {
                             std.debug.print("Failed to render sprite: {any}\n", .{err});
@@ -709,7 +718,95 @@ pub fn main() !void {
                 }
             },
             .Textures => {
-                // TODO: Implement texture viewing
+                if (texture_manager.composite_textures.items.len > 0 and texture_manager.playpal != null) {
+                    const texture_entry = texture_manager.composite_textures.items[current_texture];
+                    const texture_obj = &texture_entry.texture;
+
+                    // Render the composite texture
+                    const surface = texture_obj.render(&texture_manager, &texture_manager.playpal.?, current_palette) catch |err| {
+                        std.debug.print("Failed to render texture: {any}\n", .{err});
+                        continue;
+                    };
+                    defer c.SDL_FreeSurface(@ptrCast(surface));
+
+                    // Create texture from surface
+                    const sdl_texture = c.SDL_CreateTextureFromSurface(renderer, @ptrCast(surface)) orelse {
+                        std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_DestroyTexture(sdl_texture);
+
+                    // Draw texture
+                    var dest_rect = c.SDL_Rect{
+                        .x = 50,
+                        .y = 50,
+                        .w = @intCast(texture_obj.width * 4), // Scale up 4x for better visibility
+                        .h = @intCast(texture_obj.height * 4),
+                    };
+                    _ = c.SDL_RenderCopy(renderer, sdl_texture, null, &dest_rect);
+
+                    // Draw texture info
+                    var info_buf: [256]u8 = undefined;
+                    const info_text = try std.fmt.bufPrint(&info_buf, "Texture: {s} ({d}x{d}) Patches: {d}\x00", .{
+                        texture_entry.name,
+                        texture_obj.width,
+                        texture_obj.height,
+                        texture_obj.patches.len,
+                    });
+
+                    const text_color = c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+                    const text_surface = c.TTF_RenderText_Solid(font, info_text.ptr, text_color) orelse {
+                        std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_FreeSurface(text_surface);
+
+                    const text_texture = c.SDL_CreateTextureFromSurface(renderer, text_surface) orelse {
+                        std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_DestroyTexture(text_texture);
+
+                    var text_rect = c.SDL_Rect{
+                        .x = 50,
+                        .y = 10,
+                        .w = text_surface.*.w,
+                        .h = text_surface.*.h,
+                    };
+                    _ = c.SDL_RenderCopy(renderer, text_texture, null, &text_rect);
+
+                    // Draw list of patches used in this texture
+                    var y_offset: i32 = 50 + @as(i32, @intCast(texture_obj.height * 4)) + 20;
+                    for (texture_obj.patches) |patch_ref| {
+                        var patch_buf: [256]u8 = undefined;
+                        const patch_text = try std.fmt.bufPrint(&patch_buf, "  {s} at ({d}, {d})\x00", .{
+                            patch_ref.patch_name,
+                            patch_ref.x_offset,
+                            patch_ref.y_offset,
+                        });
+
+                        const patch_text_surface = c.TTF_RenderText_Solid(font, patch_text.ptr, text_color) orelse {
+                            std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
+                            continue;
+                        };
+                        defer c.SDL_FreeSurface(patch_text_surface);
+
+                        const patch_text_texture = c.SDL_CreateTextureFromSurface(renderer, patch_text_surface) orelse {
+                            std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                            continue;
+                        };
+                        defer c.SDL_DestroyTexture(patch_text_texture);
+
+                        var patch_text_rect = c.SDL_Rect{
+                            .x = 50,
+                            .y = y_offset,
+                            .w = patch_text_surface.*.w,
+                            .h = patch_text_surface.*.h,
+                        };
+                        _ = c.SDL_RenderCopy(renderer, patch_text_texture, null, &patch_text_rect);
+                        y_offset += 20;
+                    }
+                }
             },
         }
 

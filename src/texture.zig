@@ -7,6 +7,7 @@ const wad = @import("wad.zig");
 const patch = @import("graphics/patch.zig");
 const sprite = @import("graphics/sprite.zig");
 const flat = @import("graphics/flat.zig");
+const composite_texture = @import("graphics/composite_texture.zig");
 
 pub const TextureError = error{
     LoadError,
@@ -16,6 +17,7 @@ pub const TextureError = error{
     PatchError,
     SpriteError,
     FlatError,
+    CompositeTextureError,
 };
 
 pub const Texture = struct {
@@ -89,14 +91,21 @@ const FlatEntry = struct {
     flat: flat.Flat,
 };
 
+const CompositeTextureEntry = struct {
+    name: []const u8,
+    texture: composite_texture.CompositeTexture,
+};
+
 pub const TextureManager = struct {
     textures: std.ArrayList(TextureEntry),
     patches: std.ArrayList(PatchEntry),
     sprites: std.ArrayList(SpriteEntry),
     flats: std.ArrayList(FlatEntry),
+    composite_textures: std.ArrayList(CompositeTextureEntry),
     allocator: std.mem.Allocator,
     playpal: ?doom_textures.Playpal = null,
     colormap: ?doom_textures.Colormap = null,
+    patch_names: ?composite_texture.PatchNames = null,
 
     pub fn init(allocator: std.mem.Allocator) TextureManager {
         return .{
@@ -104,6 +113,7 @@ pub const TextureManager = struct {
             .patches = std.ArrayList(PatchEntry).init(allocator),
             .sprites = std.ArrayList(SpriteEntry).init(allocator),
             .flats = std.ArrayList(FlatEntry).init(allocator),
+            .composite_textures = std.ArrayList(CompositeTextureEntry).init(allocator),
             .allocator = allocator,
         };
     }
@@ -133,8 +143,15 @@ pub const TextureManager = struct {
         }
         self.flats.deinit();
 
+        for (self.composite_textures.items) |*entry| {
+            entry.texture.deinit();
+            self.allocator.free(entry.name);
+        }
+        self.composite_textures.deinit();
+
         if (self.playpal) |*pal| pal.deinit();
         if (self.colormap) |*cmap| cmap.deinit();
+        if (self.patch_names) |*pnames| pnames.deinit();
     }
 
     pub fn loadFromWad(self: *TextureManager, wad_file: *wad.WadFile) !void {
@@ -145,6 +162,49 @@ pub const TextureManager = struct {
         // Load COLORMAP
         self.colormap = try doom_textures.Colormap.load(self.allocator, wad_file);
         errdefer if (self.colormap) |*cmap| cmap.deinit();
+
+        // Load PNAMES
+        if (try wad_file.readLumpByName("PNAMES")) |pnames_data| {
+            defer self.allocator.free(pnames_data);
+            self.patch_names = try composite_texture.PatchNames.parse(self.allocator, pnames_data);
+        }
+
+        // Load TEXTURE1 and TEXTURE2
+        if (self.patch_names) |*pnames| {
+            // Load TEXTURE1
+            if (try wad_file.readLumpByName("TEXTURE1")) |texture1_data| {
+                defer self.allocator.free(texture1_data);
+                const textures = try composite_texture.parseTextureLump(self.allocator, texture1_data, pnames);
+                defer self.allocator.free(textures);
+
+                for (textures) |tex| {
+                    const name_copy = try self.allocator.dupe(u8, tex.name);
+                    errdefer self.allocator.free(name_copy);
+
+                    try self.composite_textures.append(.{
+                        .name = name_copy,
+                        .texture = tex,
+                    });
+                }
+            }
+
+            // Load TEXTURE2
+            if (try wad_file.readLumpByName("TEXTURE2")) |texture2_data| {
+                defer self.allocator.free(texture2_data);
+                const textures = try composite_texture.parseTextureLump(self.allocator, texture2_data, pnames);
+                defer self.allocator.free(textures);
+
+                for (textures) |tex| {
+                    const name_copy = try self.allocator.dupe(u8, tex.name);
+                    errdefer self.allocator.free(name_copy);
+
+                    try self.composite_textures.append(.{
+                        .name = name_copy,
+                        .texture = tex,
+                    });
+                }
+            }
+        }
 
         // Track marker sections
         var in_patch_marker = false;
@@ -338,5 +398,14 @@ pub const TextureManager = struct {
             return cmap.getShade(color_idx, light_level);
         }
         return TextureError.ColormapError;
+    }
+
+    pub fn getCompositeTexture(self: *const TextureManager, name: []const u8) ?*const composite_texture.CompositeTexture {
+        for (self.composite_textures.items) |*entry| {
+            if (std.mem.eql(u8, entry.name, name)) {
+                return &entry.texture;
+            }
+        }
+        return null;
     }
 };

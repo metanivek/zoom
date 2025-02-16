@@ -51,12 +51,12 @@ Refactoring the graphics system to better handle DOOM's various graphic formats 
    - [x] Rendering capabilities
    - [x] Unit tests
 
-## Phase 5: Composite Textures
+## Phase 5: Composite Textures ✅
 1. Create composite texture format
-   - [ ] TEXTURE1/TEXTURE2 parsing
-   - [ ] Patch assembly
-   - [ ] Texture cache management
-   - [ ] Unit tests
+   - [x] TEXTURE1/TEXTURE2 parsing
+   - [x] Patch assembly
+   - [x] Texture cache management
+   - [x] Unit tests
 
 ## Phase 6: Animation Support
 1. Add animation capabilities

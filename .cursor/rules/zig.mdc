@@ -1,6 +1,6 @@
 ---
-description: Zig Rules
-globs: 
+description: Zig Rules To Always Follow
+globs: *.zig
 ---
 # Zig Rules To Always Follow
 

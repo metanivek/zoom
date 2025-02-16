@@ -1,5 +1,5 @@
 ---
-description: Code Changes Control
+description: Rules to follow when making any code changes
 globs: *
 ---
 # Code Changes Control

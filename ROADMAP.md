@@ -71,10 +71,10 @@ Building a DOOM clone in Zig.
     - [x] Flats (floor/ceiling textures)
       - [x] Raw pixel data handling
       - [x] 64x64 size validation
-  - [ ] Composite textures
-    - [ ] TEXTURE1/TEXTURE2 parsing
-    - [ ] Patch assembly
-    - [ ] Texture cache management
+  - [x] Composite textures
+    - [x] TEXTURE1/TEXTURE2 parsing
+    - [x] Patch assembly
+    - [x] Texture cache management
   - [ ] Animation support
     - [ ] Animated walls
     - [ ] Animated flats
