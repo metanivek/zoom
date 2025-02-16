@@ -6,6 +6,7 @@ const doom_textures = @import("doom_textures.zig");
 const wad = @import("wad.zig");
 const patch = @import("graphics/patch.zig");
 const sprite = @import("graphics/sprite.zig");
+const flat = @import("graphics/flat.zig");
 
 pub const TextureError = error{
     LoadError,
@@ -14,6 +15,7 @@ pub const TextureError = error{
     ColormapError,
     PatchError,
     SpriteError,
+    FlatError,
 };
 
 pub const Texture = struct {
@@ -82,10 +84,16 @@ const SpriteEntry = struct {
     sprite: sprite.Sprite,
 };
 
+const FlatEntry = struct {
+    name: []const u8,
+    flat: flat.Flat,
+};
+
 pub const TextureManager = struct {
     textures: std.ArrayList(TextureEntry),
     patches: std.ArrayList(PatchEntry),
     sprites: std.ArrayList(SpriteEntry),
+    flats: std.ArrayList(FlatEntry),
     allocator: std.mem.Allocator,
     playpal: ?doom_textures.Playpal = null,
     colormap: ?doom_textures.Colormap = null,
@@ -95,6 +103,7 @@ pub const TextureManager = struct {
             .textures = std.ArrayList(TextureEntry).init(allocator),
             .patches = std.ArrayList(PatchEntry).init(allocator),
             .sprites = std.ArrayList(SpriteEntry).init(allocator),
+            .flats = std.ArrayList(FlatEntry).init(allocator),
             .allocator = allocator,
         };
     }
@@ -118,6 +127,12 @@ pub const TextureManager = struct {
         }
         self.sprites.deinit();
 
+        for (self.flats.items) |*entry| {
+            entry.flat.deinit();
+            self.allocator.free(entry.name);
+        }
+        self.flats.deinit();
+
         if (self.playpal) |*pal| pal.deinit();
         if (self.colormap) |*cmap| cmap.deinit();
     }
@@ -130,6 +145,72 @@ pub const TextureManager = struct {
         // Load COLORMAP
         self.colormap = try doom_textures.Colormap.load(self.allocator, wad_file);
         errdefer if (self.colormap) |*cmap| cmap.deinit();
+
+        // Track marker sections
+        var in_patch_marker = false;
+        var in_sprite_marker = false;
+        var in_flat_marker = false;
+
+        for (wad_file.directory) |*entry| {
+            const name = entry.getName();
+
+            // Check for patch markers
+            if (std.mem.eql(u8, name, "P_START") or std.mem.eql(u8, name, "PP_START")) {
+                in_patch_marker = true;
+                continue;
+            } else if (std.mem.eql(u8, name, "P_END") or std.mem.eql(u8, name, "PP_END")) {
+                in_patch_marker = false;
+                continue;
+            }
+
+            // Check for sprite markers
+            if (std.mem.eql(u8, name, "S_START") or std.mem.eql(u8, name, "SS_START")) {
+                in_sprite_marker = true;
+                continue;
+            } else if (std.mem.eql(u8, name, "S_END") or std.mem.eql(u8, name, "SS_END")) {
+                in_sprite_marker = false;
+                continue;
+            }
+
+            // Check for flat markers
+            if (std.mem.eql(u8, name, "F_START") or std.mem.eql(u8, name, "FF_START")) {
+                in_flat_marker = true;
+                continue;
+            } else if (std.mem.eql(u8, name, "F_END") or std.mem.eql(u8, name, "FF_END")) {
+                in_flat_marker = false;
+                continue;
+            }
+
+            // Skip nested P1/P2/P3 and F1/F2 markers
+            if (std.mem.eql(u8, name, "P1_START") or
+                std.mem.eql(u8, name, "P2_START") or
+                std.mem.eql(u8, name, "P3_START") or
+                std.mem.eql(u8, name, "P1_END") or
+                std.mem.eql(u8, name, "P2_END") or
+                std.mem.eql(u8, name, "P3_END") or
+                std.mem.eql(u8, name, "F1_START") or
+                std.mem.eql(u8, name, "F2_START") or
+                std.mem.eql(u8, name, "F1_END") or
+                std.mem.eql(u8, name, "F2_END"))
+            {
+                continue;
+            }
+
+            // Process entries based on current marker section
+            if (in_patch_marker) {
+                const data = try wad_file.readLump(entry);
+                defer self.allocator.free(data);
+                try self.loadPatch(name, data);
+            } else if (in_sprite_marker) {
+                const data = try wad_file.readLump(entry);
+                defer self.allocator.free(data);
+                try self.loadSprite(name, data);
+            } else if (in_flat_marker) {
+                const data = try wad_file.readLump(entry);
+                defer self.allocator.free(data);
+                try self.loadFlat(name, data);
+            }
+        }
     }
 
     pub fn loadTexture(self: *TextureManager, name: []const u8, path: []const u8) !void {
@@ -188,6 +269,25 @@ pub const TextureManager = struct {
         });
     }
 
+    pub fn loadFlat(self: *TextureManager, name: []const u8, data: []const u8) !void {
+        // Create owned copy of name
+        const name_copy = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_copy);
+
+        // Load flat
+        var loaded_flat = flat.Flat.load(self.allocator, data) catch |err| {
+            self.allocator.free(name_copy);
+            return err;
+        };
+        errdefer loaded_flat.deinit();
+
+        // Add to list
+        try self.flats.append(.{
+            .name = name_copy,
+            .flat = loaded_flat,
+        });
+    }
+
     pub fn getTexture(self: *const TextureManager, name: []const u8) ?*const Texture {
         for (self.textures.items) |*entry| {
             if (std.mem.eql(u8, entry.name, name)) {
@@ -210,6 +310,15 @@ pub const TextureManager = struct {
         for (self.sprites.items) |*entry| {
             if (std.mem.eql(u8, entry.name, name)) {
                 return &entry.sprite;
+            }
+        }
+        return null;
+    }
+
+    pub fn getFlat(self: *const TextureManager, name: []const u8) ?*const flat.Flat {
+        for (self.flats.items) |*entry| {
+            if (std.mem.eql(u8, entry.name, name)) {
+                return &entry.flat;
             }
         }
         return null;

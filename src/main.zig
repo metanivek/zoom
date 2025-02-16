@@ -247,4 +247,5 @@ test {
     _ = @import("graphics/patch.zig");
     _ = @import("graphics/picture.zig");
     _ = @import("graphics/sprite.zig");
+    _ = @import("graphics/flat.zig");
 }

@@ -1,6 +1,6 @@
 ---
 description: Code Changes Control
-globs: **/*
+globs: *
 ---
 # Code Changes Control
 

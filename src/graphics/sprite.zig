@@ -372,11 +372,6 @@ test "parse valid sprite names" {
     // Test numeric frame sprite name
     {
         const name = try SpriteName.parse("TROO10");
-        std.debug.print("\nNumeric frame test:\n", .{});
-        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
-        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
-        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
-        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
         try std.testing.expectEqualSlices(u8, "TROO", &name.prefix);
         try std.testing.expectEqual(@as(u8, '1'), name.first.frame);
         try std.testing.expectEqual(@as(u8, 0), name.first.rotation);
@@ -386,11 +381,6 @@ test "parse valid sprite names" {
     // Test standard sprite name
     {
         const name = try SpriteName.parse("TROOA1");
-        std.debug.print("\nStandard sprite test:\n", .{});
-        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
-        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
-        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
-        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
         try std.testing.expectEqualSlices(u8, "TROO", &name.prefix);
         try std.testing.expectEqual(@as(u8, 'A'), name.first.frame);
         try std.testing.expectEqual(@as(u8, 1), name.first.rotation);
@@ -400,11 +390,6 @@ test "parse valid sprite names" {
     // Test mirrored sprite name with same frame
     {
         const name = try SpriteName.parse("TROOA2A8");
-        std.debug.print("\nMirrored sprite test:\n", .{});
-        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
-        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
-        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
-        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
         try std.testing.expectEqualSlices(u8, "TROO", &name.prefix);
         try std.testing.expectEqual(@as(u8, 'A'), name.first.frame);
         try std.testing.expectEqual(@as(u8, 2), name.first.rotation);
@@ -420,11 +405,6 @@ test "parse valid sprite names" {
     // Test mirrored sprite name with alternate frame
     {
         const name = try SpriteName.parse("SPIDA1D1");
-        std.debug.print("\nAlternate frame test:\n", .{});
-        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
-        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
-        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
-        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
         try std.testing.expectEqualSlices(u8, "SPID", &name.prefix);
         try std.testing.expectEqual(@as(u8, 'A'), name.first.frame);
         try std.testing.expectEqual(@as(u8, 1), name.first.rotation);

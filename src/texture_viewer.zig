@@ -9,12 +9,14 @@ const tex = @import("texture.zig");
 const patch = @import("graphics/patch.zig");
 const picture = @import("graphics/picture.zig");
 const sprite = @import("graphics/sprite.zig");
+const flat = @import("graphics/flat.zig");
 
 const ViewMode = enum {
     Palettes,
     Patches,
     Textures,
     Sprites,
+    Flats,
 };
 
 const SpriteGroup = struct {
@@ -112,6 +114,9 @@ pub fn main() !void {
     };
     defer c.SDL_DestroyRenderer(renderer);
 
+    var texture_manager = tex.TextureManager.init(allocator);
+    defer texture_manager.deinit();
+
     // Load WAD file
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
@@ -128,99 +133,8 @@ pub fn main() !void {
     var wad_file = try wad.WadFile.init(allocator, wad_path);
     defer wad_file.deinit();
 
-    // Initialize texture manager
-    var texture_manager = tex.TextureManager.init(allocator);
-    defer texture_manager.deinit();
-
-    // Load PLAYPAL and COLORMAP
+    // Load all textures from WAD
     try texture_manager.loadFromWad(&wad_file);
-
-    // Load patches and sprites from WAD
-    var in_patch_marker = false;
-    var in_sprite_marker = false;
-    for (wad_file.directory) |*entry| {
-        const name = entry.getName();
-
-        // Check for patch markers
-        if (std.mem.eql(u8, name, "P_START") or std.mem.eql(u8, name, "PP_START")) {
-            in_patch_marker = true;
-            continue;
-        } else if (std.mem.eql(u8, name, "P_END") or std.mem.eql(u8, name, "PP_END")) {
-            in_patch_marker = false;
-            continue;
-        }
-
-        // Check for sprite markers
-        if (std.mem.eql(u8, name, "S_START") or std.mem.eql(u8, name, "SS_START")) {
-            in_sprite_marker = true;
-            continue;
-        } else if (std.mem.eql(u8, name, "S_END") or std.mem.eql(u8, name, "SS_END")) {
-            in_sprite_marker = false;
-            continue;
-        }
-
-        // Skip nested P1/P2/P3 markers
-        if (std.mem.eql(u8, name, "P1_START") or
-            std.mem.eql(u8, name, "P2_START") or
-            std.mem.eql(u8, name, "P3_START") or
-            std.mem.eql(u8, name, "P1_END") or
-            std.mem.eql(u8, name, "P2_END") or
-            std.mem.eql(u8, name, "P3_END"))
-        {
-            continue;
-        }
-
-        // Process entries based on current marker section
-        if (in_patch_marker) {
-            // Try to load as patch
-            std.debug.print("\nLoading patch '{s}' (file_pos={d}, size={d})\n", .{ name, entry.file_pos, entry.size });
-            const data = try wad_file.readLump(entry);
-            defer allocator.free(data);
-
-            texture_manager.loadPatch(name, data) catch |err| {
-                std.debug.print("\nFailed to load patch '{s}': {any}\n", .{ name, err });
-                std.debug.print("Patch data size: {d} bytes\n", .{data.len});
-                std.debug.print("First 16 bytes: ", .{});
-                for (data[0..@min(16, data.len)]) |byte| {
-                    std.debug.print("{X:0>2} ", .{byte});
-                }
-                std.debug.print("\n", .{});
-                if (data.len >= @sizeOf(picture.Header)) {
-                    const header = @as(*const picture.Header, @ptrCast(@alignCast(data.ptr)));
-                    std.debug.print("Patch header:\n", .{});
-                    std.debug.print("  width: {d}\n", .{header.width});
-                    std.debug.print("  height: {d}\n", .{header.height});
-                    std.debug.print("  left_offset: {d}\n", .{header.left_offset});
-                    std.debug.print("  top_offset: {d}\n", .{header.top_offset});
-                }
-                return err;
-            };
-        } else if (in_sprite_marker) {
-            // Try to load as sprite
-            std.debug.print("\nLoading sprite '{s}' (file_pos={d}, size={d})\n", .{ name, entry.file_pos, entry.size });
-            const data = try wad_file.readLump(entry);
-            defer allocator.free(data);
-
-            texture_manager.loadSprite(name, data) catch |err| {
-                std.debug.print("\nFailed to load sprite '{s}': {any}\n", .{ name, err });
-                std.debug.print("Sprite data size: {d} bytes\n", .{data.len});
-                std.debug.print("First 16 bytes: ", .{});
-                for (data[0..@min(16, data.len)]) |byte| {
-                    std.debug.print("{X:0>2} ", .{byte});
-                }
-                std.debug.print("\n", .{});
-                if (data.len >= @sizeOf(picture.Header)) {
-                    const header = @as(*const picture.Header, @ptrCast(@alignCast(data.ptr)));
-                    std.debug.print("Sprite header:\n", .{});
-                    std.debug.print("  width: {d}\n", .{header.width});
-                    std.debug.print("  height: {d}\n", .{header.height});
-                    std.debug.print("  left_offset: {d}\n", .{header.left_offset});
-                    std.debug.print("  top_offset: {d}\n", .{header.top_offset});
-                }
-                continue;
-            };
-        }
-    }
 
     // Main loop variables
     var quit = false;
@@ -228,6 +142,7 @@ pub fn main() !void {
     var current_patch: usize = 0;
     var current_palette: u8 = 0;
     var current_rotation: u8 = 0;
+    var current_flat: usize = 0;
 
     // Create sprite groups
     var sprite_groups = std.ArrayList(SpriteGroup).init(allocator);
@@ -304,14 +219,15 @@ pub fn main() !void {
                 },
                 c.SDL_KEYDOWN => {
                     switch (event.key.keysym.sym) {
-                        c.SDLK_ESCAPE => quit = true,
+                        c.SDLK_q => quit = true,
                         c.SDLK_m => {
                             // Cycle view mode
                             view_mode = switch (view_mode) {
                                 .Palettes => .Patches,
                                 .Patches => .Textures,
                                 .Textures => .Sprites,
-                                .Sprites => .Palettes,
+                                .Sprites => .Flats,
+                                .Flats => .Palettes,
                             };
                         },
                         c.SDLK_LEFT => switch (view_mode) {
@@ -323,6 +239,11 @@ pub fn main() !void {
                             .Sprites => {
                                 if (sprite_groups.items.len > 0 and current_group > 0) {
                                     current_group -= 1;
+                                }
+                            },
+                            .Flats => {
+                                if (texture_manager.flats.items.len > 0 and current_flat > 0) {
+                                    current_flat -= 1;
                                 }
                             },
                             .Palettes => {
@@ -341,6 +262,11 @@ pub fn main() !void {
                             .Sprites => {
                                 if (sprite_groups.items.len > 0 and current_group < sprite_groups.items.len - 1) {
                                     current_group += 1;
+                                }
+                            },
+                            .Flats => {
+                                if (texture_manager.flats.items.len > 0 and current_flat < texture_manager.flats.items.len - 1) {
+                                    current_flat += 1;
                                 }
                             },
                             .Palettes => {
@@ -702,7 +628,63 @@ pub fn main() !void {
 
                     // Draw palette info
                     var info_buf: [256]u8 = undefined;
-                    const info_text = try std.fmt.bufPrint(&info_buf, "Palette {d}/13", .{current_palette});
+                    const info_text = try std.fmt.bufPrint(&info_buf, "Palette {d}/13\x00", .{current_palette});
+
+                    const text_color = c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+                    const text_surface = c.TTF_RenderText_Solid(font, info_text.ptr, text_color) orelse {
+                        std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_FreeSurface(text_surface);
+
+                    const text_texture = c.SDL_CreateTextureFromSurface(renderer, text_surface) orelse {
+                        std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_DestroyTexture(text_texture);
+
+                    var text_rect = c.SDL_Rect{
+                        .x = 50,
+                        .y = 10,
+                        .w = text_surface.*.w,
+                        .h = text_surface.*.h,
+                    };
+                    _ = c.SDL_RenderCopy(renderer, text_texture, null, &text_rect);
+                }
+            },
+            .Flats => {
+                if (texture_manager.flats.items.len > 0 and texture_manager.playpal != null) {
+                    const flat_entry = &texture_manager.flats.items[current_flat];
+                    const current_flat_obj = &flat_entry.flat;
+
+                    // Render flat using our render function
+                    const surface = current_flat_obj.render(&texture_manager.playpal.?, current_palette) catch |err| {
+                        std.debug.print("Failed to render flat: {any}\n", .{err});
+                        continue;
+                    };
+                    defer c.SDL_FreeSurface(@ptrCast(surface));
+
+                    // Create texture from surface
+                    const sdl_texture = c.SDL_CreateTextureFromSurface(renderer, @ptrCast(surface)) orelse {
+                        std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_DestroyTexture(sdl_texture);
+
+                    // Draw texture
+                    var dest_rect = c.SDL_Rect{
+                        .x = 50,
+                        .y = 50,
+                        .w = 64 * 4, // Scale up 4x for better visibility
+                        .h = 64 * 4,
+                    };
+                    _ = c.SDL_RenderCopy(renderer, sdl_texture, null, &dest_rect);
+
+                    // Draw flat info
+                    var info_buf: [256]u8 = undefined;
+                    const info_text = try std.fmt.bufPrint(&info_buf, "Flat: {s} (64x64)\x00", .{
+                        flat_entry.name,
+                    });
 
                     const text_color = c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
                     const text_surface = c.TTF_RenderText_Solid(font, info_text.ptr, text_color) orelse {

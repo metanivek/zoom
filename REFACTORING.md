@@ -35,7 +35,7 @@ Refactoring the graphics system to better handle DOOM's various graphic formats 
    - [x] Update `texture_viewer.zig`
    - [x] Fix build system
 
-## Phase 3: Sprites (Next)
+## Phase 3: Sprites ✅
 1. Create sprite format in `src/graphics/sprite.zig`
    - [x] Use composition with base `Picture` format
    - [x] Add sprite-specific metadata
@@ -44,12 +44,12 @@ Refactoring the graphics system to better handle DOOM's various graphic formats 
    - [x] Rendering capabilities
    - [x] Unit tests
 
-## Phase 4: Flats
+## Phase 4: Flats ✅
 1. Create flat format in `src/graphics/flat.zig`
-   - [ ] Raw pixel data format (64x64)
-   - [ ] Size validation
-   - [ ] Rendering capabilities
-   - [ ] Unit tests
+   - [x] Raw pixel data format (64x64)
+   - [x] Size validation
+   - [x] Rendering capabilities
+   - [x] Unit tests
 
 ## Phase 5: Composite Textures
 1. Create composite texture format
