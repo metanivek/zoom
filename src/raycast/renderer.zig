@@ -2,10 +2,10 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
+const map_mod = @import("map.zig");
+const Map = map_mod.Map;
+const Vec2 = map_mod.Vec2;
 const texture = @import("texture.zig");
-const map = @import("map.zig");
-const Map = map.Map;
-const Vec2 = map.Vec2;
 const TextureManager = texture.TextureManager;
 
 pub const Renderer3D = struct {
@@ -167,7 +167,7 @@ pub const Renderer3D = struct {
 
     const RayHit = struct {
         distance: f32,
-        wall: map.Wall,
+        wall: map_mod.Wall,
         hit_point: Vec2,
         normal: Vec2,
     };
@@ -187,7 +187,7 @@ pub const Renderer3D = struct {
         return closest_hit;
     }
 
-    fn rayLineIntersection(self: *const Renderer3D, ray_start: Vec2, ray_dir: Vec2, wall: map.Wall) ?RayHit {
+    fn rayLineIntersection(self: *const Renderer3D, ray_start: Vec2, ray_dir: Vec2, wall: map_mod.Wall) ?RayHit {
         _ = self;
         const wall_vec = wall.end.sub(wall.start);
         const det = ray_dir.x * wall_vec.y - ray_dir.y * wall_vec.x;

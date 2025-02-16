@@ -2,6 +2,8 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
+const texture = @import("texture.zig");
+const TextureManager = texture.TextureManager;
 
 pub const Vec2 = struct {
     x: f32,

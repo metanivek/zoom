@@ -3,9 +3,11 @@ const c = @cImport({
     @cInclude("SDL2/SDL.h");
     @cInclude("SDL2/SDL_ttf.h");
 });
-const wad = @import("wad.zig");
-const doom_textures = @import("doom_textures.zig");
-const patch = @import("graphics/patch.zig");
+const lib = @import("lib");
+
+const wad = lib.wad;
+const doom_textures = lib.doom_textures;
+const patch = lib.graphics.patch;
 
 /// Get the next or previous sprite frame name
 /// For example: TROOA1 -> TROOB1 (next) or TROOZ1 (prev)

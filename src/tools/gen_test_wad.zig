@@ -1,5 +1,6 @@
 const std = @import("std");
-const doom_map = @import("doom_map.zig");
+const lib = @import("lib");
+const doom_map = lib.doom_map;
 
 pub fn main() !void {
     // Initialize allocator

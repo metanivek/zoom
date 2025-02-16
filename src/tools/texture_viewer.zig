@@ -3,13 +3,15 @@ const c = @cImport({
     @cInclude("SDL2/SDL.h");
     @cInclude("SDL_ttf.h");
 });
-const wad = @import("wad.zig");
-const doom_textures = @import("doom_textures.zig");
-const tex = @import("texture.zig");
-const patch = @import("graphics/patch.zig");
-const picture = @import("graphics/picture.zig");
-const sprite = @import("graphics/sprite.zig");
-const flat = @import("graphics/flat.zig");
+const lib = @import("lib");
+
+const wad = lib.wad;
+const doom_textures = lib.doom_textures;
+const tex = lib.texture;
+const patch = lib.graphics.patch;
+const picture = lib.graphics.picture;
+const sprite = lib.graphics.sprite;
+const flat = lib.graphics.flat;
 
 const ViewMode = enum {
     Palettes,

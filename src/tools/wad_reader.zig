@@ -1,5 +1,6 @@
 const std = @import("std");
-const wad = @import("wad.zig");
+const lib = @import("lib");
+const wad = lib.wad;
 
 pub fn main() !void {
     // Initialize allocator

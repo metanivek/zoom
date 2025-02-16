@@ -15,6 +15,25 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    // Create the lib module that will be shared by all executables
+    const lib_module = b.createModule(.{
+        .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    lib_module.linkSystemLibrary("SDL2", .{});
+
+    // Raycast demo executable
+    const raycast = b.addExecutable(.{
+        .name = "raycast",
+        .root_source_file = b.path("src/raycast/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    raycast.linkSystemLibrary("SDL2");
+    raycast.linkLibC();
+    b.installArtifact(raycast);
+
     // Main game executable
     const exe = b.addExecutable(.{
         .name = "zoom",
@@ -22,29 +41,18 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.linkSystemLibrary("SDL2");
+    exe.root_module.addImport("lib", lib_module);
     exe.linkLibC();
     b.installArtifact(exe);
-
-    // Texture generator executable
-    const gen_textures = b.addExecutable(.{
-        .name = "gen_textures",
-        .root_source_file = b.path("src/gen_textures.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    gen_textures.linkSystemLibrary("SDL2");
-    gen_textures.linkLibC();
-    b.installArtifact(gen_textures);
 
     // Texture viewer executable
     const texture_viewer = b.addExecutable(.{
         .name = "texture_viewer",
-        .root_source_file = b.path("src/texture_viewer.zig"),
+        .root_source_file = b.path("src/tools/texture_viewer.zig"),
         .target = target,
         .optimize = optimize,
     });
-    texture_viewer.linkSystemLibrary("SDL2");
+    texture_viewer.root_module.addImport("lib", lib_module);
     texture_viewer.linkSystemLibrary("SDL2_ttf");
     texture_viewer.linkLibC();
     b.installArtifact(texture_viewer);
@@ -52,29 +60,31 @@ pub fn build(b: *std.Build) void {
     // WAD reader executable
     const wad_reader = b.addExecutable(.{
         .name = "wad_reader",
-        .root_source_file = b.path("src/wad_reader.zig"),
+        .root_source_file = b.path("src/tools/wad_reader.zig"),
         .target = target,
         .optimize = optimize,
     });
+    wad_reader.root_module.addImport("lib", lib_module);
     b.installArtifact(wad_reader);
 
     // Test WAD generator executable
     const gen_test_wad = b.addExecutable(.{
         .name = "gen_test_wad",
-        .root_source_file = b.path("src/gen_test_wad.zig"),
+        .root_source_file = b.path("src/tools/gen_test_wad.zig"),
         .target = target,
         .optimize = optimize,
     });
+    gen_test_wad.root_module.addImport("lib", lib_module);
     b.installArtifact(gen_test_wad);
 
     // Lump viewer executable
     const lump_viewer = b.addExecutable(.{
         .name = "lump_viewer",
-        .root_source_file = b.path("src/lump_viewer.zig"),
+        .root_source_file = b.path("src/tools/lump_viewer.zig"),
         .target = target,
         .optimize = optimize,
     });
-    lump_viewer.linkSystemLibrary("SDL2");
+    lump_viewer.root_module.addImport("lib", lib_module);
     lump_viewer.linkSystemLibrary("SDL2_ttf");
     lump_viewer.linkLibC();
     b.installArtifact(lump_viewer);
@@ -83,11 +93,6 @@ pub fn build(b: *std.Build) void {
     const gen_test_wad_step = b.step("gen-test-wad", "Generate test WAD file");
     const gen_test_wad_run = b.addRunArtifact(gen_test_wad);
     gen_test_wad_step.dependOn(&gen_test_wad_run.step);
-
-    // Add a step to generate textures
-    const gen_textures_step = b.step("gen-textures", "Generate wall textures");
-    const gen_textures_run = b.addRunArtifact(gen_textures);
-    gen_textures_step.dependOn(&gen_textures_run.step);
 
     // Add a step to run wad reader
     const wad_reader_step = b.step("wad-reader", "Run WAD reader");
@@ -112,6 +117,15 @@ pub fn build(b: *std.Build) void {
         lump_viewer_run.addArgs(args);
     }
     lump_viewer_step.dependOn(&lump_viewer_run.step);
+
+    // Add a step to run raycast demo
+    const raycast_run = b.addRunArtifact(raycast);
+    raycast_run.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        raycast_run.addArgs(args);
+    }
+    const raycast_step = b.step("raycast", "Run the raycast demo");
+    raycast_step.dependOn(&raycast_run.step);
 
     // Run step for the game
     const run_cmd = b.addRunArtifact(exe);
