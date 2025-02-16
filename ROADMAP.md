@@ -65,9 +65,9 @@ Building a DOOM clone in Zig.
     - [x] Patches (wall textures, menu graphics)
       - [x] Patch header parsing
       - [x] Offset handling
-    - [ ] Sprites (enemies, items, weapons)
-      - [ ] Frame sequences
-      - [ ] Rotation states
+    - [x] Sprites (enemies, items, weapons)
+      - [x] Frame sequences
+      - [x] Rotation states
     - [ ] Flats (floor/ceiling textures)
       - [ ] Raw pixel data handling
       - [ ] 64x64 size validation

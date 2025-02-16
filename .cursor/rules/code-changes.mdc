@@ -1,0 +1,35 @@
+---
+description: Code Changes Control
+globs: **/*
+---
+# Code Changes Control
+
+Rules for how the AI should handle code changes in composer mode.
+
+MUST:
+- Ask for explicit permission before making any sweeping code changes
+- Provide a clear explanation of intended changes before proceeding
+- Wait for user confirmation before implementing large refactors
+- Present a plan of changes when multiple files are involved
+
+SHOULD:
+- Break down large changes into smaller, reviewable chunks
+- Provide rationale for suggested changes
+- List affected files before making changes
+
+NEVER:
+- Make sweeping changes without user approval
+- Modify multiple files without prior discussion
+- Implement major refactoring without explicit consent
+
+## Examples
+
+❌ Don't:
+- Immediately refactor code structure
+- Change multiple files at once without discussion
+- Make architectural decisions autonomously
+
+✅ Do:
+- "Here's my plan for refactoring X. Would you like me to proceed?"
+- "I suggest the following changes to files A, B, C. Shall I show you the changes first?"
+- "Before I implement this, let me outline the impact..." 
