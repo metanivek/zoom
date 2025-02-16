@@ -14,9 +14,9 @@ MUST:
 - Use the output of the diff as the basis for the suggested commit message
 - Keep commit titles to 60 characters or less. Always!
 - Unless otherwise instructed make sure all files are staged before committing (`git add .`)
-- Suggest running `git commit` and let me author the commit
 - Suggest a commit message for me to use in the commit
 - Focus on the primary change from the diff when selecting the title
+- Run `git commit` and let me author the commit
 
 NEVER:
 - Use `git commit -m`
