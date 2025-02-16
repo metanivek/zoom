@@ -1,0 +1,14 @@
+---
+description: Zig Rules
+globs: 
+---
+# Zig Rules To Always Follow
+
+## Tests
+- To run tests: `zig build test`
+- Always put tests in the file under test. Never create a new file just to hold tests.
+- When adding tests to a new module make sure to include it in the test at the bottom of [main.zig](mdc:src/main.zig)
+
+## Debug utilities / general running
+- When asked to run something, always consult [build.zig](mdc:build.zig) to know how to run it
+- There is always a doom1.wad file in the root of the project that can be used for debugging

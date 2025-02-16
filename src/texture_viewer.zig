@@ -20,34 +20,47 @@ const ViewMode = enum {
 const SpriteGroup = struct {
     prefix: []const u8,
     sprite_indices: std.ArrayList(usize), // Indices into texture_manager.sprites
-    frame_sequence: []u8, // Sequence of frame letters for animation
+    frame_sequences: [9]std.ArrayList(u8), // Frame sequences for each rotation (0-8)
     current_rotation: u8 = 0,
     is_animating: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, prefix: []const u8) !SpriteGroup {
-        return SpriteGroup{
+        var group = SpriteGroup{
             .prefix = try allocator.dupe(u8, prefix),
             .sprite_indices = std.ArrayList(usize).init(allocator),
-            .frame_sequence = try allocator.alloc(u8, 0),
+            .frame_sequences = undefined,
             .is_animating = false,
         };
+        // Initialize frame sequences for each rotation
+        for (&group.frame_sequences) |*seq| {
+            seq.* = std.ArrayList(u8).init(allocator);
+        }
+        return group;
     }
 
     pub fn deinit(self: *SpriteGroup, allocator: std.mem.Allocator) void {
         allocator.free(self.prefix);
-        allocator.free(self.frame_sequence);
+        for (&self.frame_sequences) |*seq| {
+            seq.deinit();
+        }
         self.sprite_indices.deinit();
     }
 
-    pub fn addFrameLetter(self: *SpriteGroup, allocator: std.mem.Allocator, frame: u8) !void {
-        // Check if frame letter already exists
-        for (self.frame_sequence) |existing_frame| {
+    /// Add a frame letter to the sequence for a specific rotation
+    pub fn addFrameLetter(self: *SpriteGroup, rotation: u8, frame: u8) !void {
+        if (rotation > 8) return;
+        // Check if frame letter already exists for this rotation
+        for (self.frame_sequences[rotation].items) |existing_frame| {
             if (existing_frame == frame) return;
         }
         // Add new frame letter
-        const new_sequence = try allocator.realloc(self.frame_sequence, self.frame_sequence.len + 1);
-        new_sequence[new_sequence.len - 1] = frame;
-        self.frame_sequence = new_sequence;
+        try self.frame_sequences[rotation].append(frame);
+    }
+
+    /// Get the frame sequence for a specific rotation
+    pub fn getFrameSequence(self: *const SpriteGroup, rotation: u8) []const u8 {
+        if (rotation > 8) return &[_]u8{};
+        return self.frame_sequences[rotation].items;
     }
 };
 
@@ -245,20 +258,38 @@ pub fn main() !void {
             // Add sprite index to its group
             try sprite_groups.items[group_idx].sprite_indices.append(i);
 
-            // Add frame letter to sequence if not already present
-            try sprite_groups.items[group_idx].addFrameLetter(allocator, sprite_entry.sprite.name.frame);
+            // Add frame letter to the appropriate rotation sequence
+            const sprite_obj = &sprite_entry.sprite;
+            // For primary rotation
+            try sprite_groups.items[group_idx].addFrameLetter(sprite_obj.name.first.rotation, sprite_obj.name.first.frame);
+            // For second rotation/frame
+            if (sprite_obj.name.second) |second| {
+                try sprite_groups.items[group_idx].addFrameLetter(second.rotation, second.frame);
+            }
         }
 
         // Sort frame sequences for consistent animation order
         for (sprite_groups.items) |*group| {
-            std.mem.sort(u8, group.frame_sequence, {}, std.sort.asc(u8));
+            for (&group.frame_sequences) |*seq| {
+                std.mem.sort(u8, seq.items, {}, std.sort.asc(u8));
+            }
         }
 
         // Set up animations for all sprites
         for (sprite_groups.items) |*group| {
             for (group.sprite_indices.items) |sprite_idx| {
                 var sprite_obj = &texture_manager.sprites.items[sprite_idx].sprite;
-                try sprite_obj.setupAnimation(group.frame_sequence);
+                // Set up animation for both first and second rotations if they exist
+                const first_sequence = group.getFrameSequence(sprite_obj.name.first.rotation);
+                if (first_sequence.len > 0) {
+                    try sprite_obj.setupAnimation(first_sequence);
+                }
+                if (sprite_obj.name.second) |second| {
+                    const second_sequence = group.getFrameSequence(second.rotation);
+                    if (second_sequence.len > 0) {
+                        try sprite_obj.setupAnimation(second_sequence);
+                    }
+                }
             }
         }
     }
@@ -327,7 +358,7 @@ pub fn main() !void {
                                     // Find sprite with current rotation and toggle its animation
                                     for (group.sprite_indices.items) |sprite_idx| {
                                         var sprite_obj = &texture_manager.sprites.items[sprite_idx].sprite;
-                                        if (sprite_obj.name.rotation == current_rotation) {
+                                        if (sprite_obj.name.first.rotation == current_rotation) {
                                             if (group.is_animating) {
                                                 sprite_obj.play();
                                             } else {
@@ -430,40 +461,114 @@ pub fn main() !void {
                 if (sprite_groups.items.len > 0 and texture_manager.playpal != null) {
                     const group = &sprite_groups.items[current_group];
 
-                    // Draw list of sprite lump names for current prefix
+                    // Always show sprite group info at the top
+                    var info_buf: [256]u8 = undefined;
+                    _ = try std.fmt.bufPrint(&info_buf, "Sprite Group: {s} Frames: {d} Rotation: {d} {s}\x00", .{
+                        group.prefix,
+                        group.frame_sequences[current_rotation].items.len,
+                        current_rotation,
+                        if (group.is_animating) "(Animating)" else "",
+                    });
+
+                    const text_color = c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+                    const text_surface = c.TTF_RenderText_Solid(font, &info_buf, text_color) orelse {
+                        std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_FreeSurface(text_surface);
+
+                    const text_texture = c.SDL_CreateTextureFromSurface(renderer, text_surface) orelse {
+                        std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_DestroyTexture(text_texture);
+
+                    var text_rect = c.SDL_Rect{
+                        .x = 50,
+                        .y = 10,
+                        .w = text_surface.*.w,
+                        .h = text_surface.*.h,
+                    };
+                    _ = c.SDL_RenderCopy(renderer, text_texture, null, &text_rect);
+
+                    // Draw list of sprite lump names that are used in the current rotation's animation
                     var y_offset: c_int = 50;
+                    const frame_sequence = group.frame_sequences[current_rotation].items;
+
+                    // First show the frame sequence for this rotation
+                    var sequence_buf: [256]u8 = undefined;
+                    _ = try std.fmt.bufPrint(&sequence_buf, "Frame sequence: {s}\x00", .{frame_sequence});
+                    const sequence_surface = c.TTF_RenderText_Solid(font, &sequence_buf, text_color) orelse {
+                        std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_FreeSurface(sequence_surface);
+
+                    const sequence_texture = c.SDL_CreateTextureFromSurface(renderer, sequence_surface) orelse {
+                        std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                        continue;
+                    };
+                    defer c.SDL_DestroyTexture(sequence_texture);
+
+                    var sequence_rect = c.SDL_Rect{
+                        .x = 20,
+                        .y = y_offset,
+                        .w = sequence_surface.*.w,
+                        .h = sequence_surface.*.h,
+                    };
+                    _ = c.SDL_RenderCopy(renderer, sequence_texture, null, &sequence_rect);
+                    y_offset += 30;
+
+                    // Then show matching lumps
                     for (group.sprite_indices.items) |sprite_idx| {
                         const sprite_entry = &texture_manager.sprites.items[sprite_idx];
-                        var info_buf: [256]u8 = undefined;
-                        // Get the actual sprite name length by finding the first non-printable character
-                        var name_len: usize = 0;
-                        for (sprite_entry.name) |char| {
-                            if (char < 32 or char > 126) break;
-                            name_len += 1;
+                        const sprite_obj = &sprite_entry.sprite;
+
+                        // Only show lumps that match the current rotation's frame sequence
+                        const matches_rotation = sprite_obj.name.first.rotation == current_rotation or
+                            if (sprite_obj.name.second) |second| second.rotation == current_rotation else false;
+                        const frame_in_sequence = for (frame_sequence) |frame| {
+                            if (sprite_obj.name.first.rotation == current_rotation and sprite_obj.name.first.frame == frame) {
+                                break true;
+                            }
+                            if (sprite_obj.name.second) |second| {
+                                if (second.rotation == current_rotation and second.frame == frame) {
+                                    break true;
+                                }
+                            }
+                        } else false;
+
+                        if (matches_rotation and frame_in_sequence) {
+                            var lump_name_buf: [256]u8 = undefined;
+                            // Get the actual sprite name length by finding the first non-printable character
+                            var name_len: usize = 0;
+                            for (sprite_entry.name) |char| {
+                                if (char < 32 or char > 126) break;
+                                name_len += 1;
+                            }
+                            _ = try std.fmt.bufPrint(&lump_name_buf, "  {s}\x00", .{sprite_entry.name[0..name_len]});
+
+                            const lump_text_surface = c.TTF_RenderText_Solid(font, &lump_name_buf, text_color) orelse {
+                                std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
+                                continue;
+                            };
+                            defer c.SDL_FreeSurface(lump_text_surface);
+
+                            const lump_text_texture = c.SDL_CreateTextureFromSurface(renderer, lump_text_surface) orelse {
+                                std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                                continue;
+                            };
+                            defer c.SDL_DestroyTexture(lump_text_texture);
+
+                            var lump_text_rect = c.SDL_Rect{
+                                .x = 20,
+                                .y = y_offset,
+                                .w = lump_text_surface.*.w,
+                                .h = lump_text_surface.*.h,
+                            };
+                            _ = c.SDL_RenderCopy(renderer, lump_text_texture, null, &lump_text_rect);
+                            y_offset += 20;
                         }
-                        _ = try std.fmt.bufPrint(&info_buf, "{s}\x00", .{sprite_entry.name[0..name_len]});
-
-                        const text_color = c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
-                        const text_surface = c.TTF_RenderText_Solid(font, &info_buf, text_color) orelse {
-                            std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
-                            continue;
-                        };
-                        defer c.SDL_FreeSurface(text_surface);
-
-                        const text_texture = c.SDL_CreateTextureFromSurface(renderer, text_surface) orelse {
-                            std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
-                            continue;
-                        };
-                        defer c.SDL_DestroyTexture(text_texture);
-
-                        var text_rect = c.SDL_Rect{
-                            .x = 20,
-                            .y = y_offset,
-                            .w = text_surface.*.w,
-                            .h = text_surface.*.h,
-                        };
-                        _ = c.SDL_RenderCopy(renderer, text_texture, null, &text_rect);
-                        y_offset += 20;
                     }
 
                     // Find sprite with current rotation
@@ -472,7 +577,10 @@ pub fn main() !void {
                         var animation_sprite: ?*sprite.Sprite = null;
                         for (group.sprite_indices.items) |sprite_idx| {
                             const sprite_obj = &texture_manager.sprites.items[sprite_idx].sprite;
-                            if (sprite_obj.name.rotation == current_rotation) {
+                            // Check for direct rotation match or second rotation match
+                            if (sprite_obj.name.first.rotation == current_rotation or
+                                (sprite_obj.name.second != null and sprite_obj.name.second.?.rotation == current_rotation))
+                            {
                                 animation_sprite = sprite_obj;
                                 break;
                             }
@@ -493,10 +601,21 @@ pub fn main() !void {
                                 // Find the sprite that matches both rotation and current frame
                                 for (group.sprite_indices.items) |sprite_idx| {
                                     const sprite_obj = &texture_manager.sprites.items[sprite_idx].sprite;
-                                    if (sprite_obj.name.rotation == current_rotation and
-                                        sprite_obj.name.frame == current_frame)
+
+                                    // Check first rotation/frame
+                                    if (sprite_obj.name.first.rotation == current_rotation and
+                                        sprite_obj.name.first.frame == current_frame)
                                     {
                                         break :blk sprite_obj;
+                                    }
+
+                                    // Check second rotation/frame if it exists
+                                    if (sprite_obj.name.second) |second| {
+                                        if (second.rotation == current_rotation and
+                                            second.frame == current_frame)
+                                        {
+                                            break :blk sprite_obj;
+                                        }
                                     }
                                 }
                             }
@@ -529,37 +648,31 @@ pub fn main() !void {
                         _ = c.SDL_RenderCopy(renderer, sdl_texture, null, &dest_rect);
 
                         // Draw sprite info
-                        var info_buf: [256]u8 = undefined;
-                        _ = try std.fmt.bufPrint(&info_buf, "Sprite Group: {s} Frame: {d}/{d} Rotation: {d} {s} ({d}x{d})\x00", .{
-                            group.prefix,
-                            if (sprite_obj.animation) |anim| anim.current_frame + 1 else 1,
-                            group.frame_sequence.len,
-                            current_rotation,
-                            if (group.is_animating) "(Animating)" else "",
+                        var sprite_info_buf: [256]u8 = undefined;
+                        _ = try std.fmt.bufPrint(&sprite_info_buf, "Size: {d}x{d}\x00", .{
                             sprite_obj.picture.header.width,
                             sprite_obj.picture.header.height,
                         });
 
-                        const text_color = c.SDL_Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
-                        const text_surface = c.TTF_RenderText_Solid(font, &info_buf, text_color) orelse {
+                        const sprite_text_surface = c.TTF_RenderText_Solid(font, &sprite_info_buf, text_color) orelse {
                             std.debug.print("Failed to render text: {s}\n", .{c.TTF_GetError()});
                             continue;
                         };
-                        defer c.SDL_FreeSurface(text_surface);
+                        defer c.SDL_FreeSurface(sprite_text_surface);
 
-                        const text_texture = c.SDL_CreateTextureFromSurface(renderer, text_surface) orelse {
+                        const sprite_text_texture = c.SDL_CreateTextureFromSurface(renderer, sprite_text_surface) orelse {
                             std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
                             continue;
                         };
-                        defer c.SDL_DestroyTexture(text_texture);
+                        defer c.SDL_DestroyTexture(sprite_text_texture);
 
-                        var text_rect = c.SDL_Rect{
+                        var sprite_text_rect = c.SDL_Rect{
                             .x = 50,
-                            .y = 10,
-                            .w = text_surface.*.w,
-                            .h = text_surface.*.h,
+                            .y = 550,
+                            .w = sprite_text_surface.*.w,
+                            .h = sprite_text_surface.*.h,
                         };
-                        _ = c.SDL_RenderCopy(renderer, text_texture, null, &text_rect);
+                        _ = c.SDL_RenderCopy(renderer, sprite_text_texture, null, &sprite_text_rect);
                     }
                 }
             },

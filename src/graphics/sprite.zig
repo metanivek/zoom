@@ -90,22 +90,44 @@ pub const SpriteAnimation = struct {
 /// Sprite name format can be either:
 /// - "TROOA1" where:
 ///   - TROO: 4 letter sprite prefix
-///   - A: frame (A-Z)
-///   - 1: rotation (0-8, 0 means no rotations)
+///   - A: frame (A-Z or 0-9)
+///   - 1: rotation (0-8)
 /// - "TROOA2A8" where:
 ///   - TROO: 4 letter sprite prefix
-///   - A: frame (A-Z)
-///   - 2A8: indicates this sprite is used for both rotation 2 and 8 (mirrored)
-/// - "TROOK0" where:
-///   - TROO: 4 letter sprite prefix
-///   - K: frame (A-Z or 0-9)
-///   - 0: rotation (0-8, 0 means no rotations)
+///   - A: first frame (A-Z)
+///   - 2: first rotation (0-8)
+///   - A: second frame (A-Z)
+///   - 8: second rotation (0-8)
+/// - "SPIDA1D1" where:
+///   - SPID: 4 letter sprite prefix
+///   - A: first frame (A-Z)
+///   - 1: first rotation (0-8)
+///   - D: second frame (A-Z)
+///   - 1: second rotation (0-8)
+pub const FrameRotation = struct {
+    frame: u8,
+    rotation: u8,
+};
+
 pub const SpriteName = struct {
-    prefix: [4]u8, // e.g. "TROO"
-    frame: u8, // A-Z or 0-9
-    rotation: u8, // 0-8 (0 = no rotations)
-    is_mirrored: bool = false, // true if this sprite is used for two rotations
-    mirror_rotation: u8 = 0, // the second rotation when is_mirrored is true
+    prefix: [4]u8,
+    first: FrameRotation,
+    second: ?FrameRotation = null,
+
+    /// Returns true if this sprite has a second frame/rotation pair
+    pub fn hasSecondPair(self: SpriteName) bool {
+        return self.second != null;
+    }
+
+    /// Returns true if this sprite has a different frame for the second pair
+    pub fn hasAlternateFrame(self: SpriteName) bool {
+        return self.second != null and self.second.?.frame != self.first.frame;
+    }
+
+    /// Returns true if this sprite has a different rotation for the second pair
+    pub fn hasDifferentRotation(self: SpriteName) bool {
+        return self.second != null and self.second.?.rotation != self.first.rotation;
+    }
 
     pub fn parse(name: []const u8) !SpriteName {
         // Validate name length
@@ -116,91 +138,80 @@ pub const SpriteName = struct {
             if (char < 32 or char > 126) return error.InvalidSpriteName;
         }
 
-        // Handle standard case (6 characters, e.g. "TROOA1" or "TROOK0")
-        if (name.len == 6) {
-            // Validate frame (A-Z or 0-9)
-            const frame = name[4];
-            if (!((frame >= 'A' and frame <= 'Z') or (frame >= '0' and frame <= '9'))) {
-                return error.InvalidSpriteName;
-            }
+        // Parse first frame and rotation
+        const first_frame = name[4];
+        const first_rotation = name[5];
 
-            // Validate rotation (0-8)
-            const rotation = name[5];
-            if (rotation < '0' or rotation > '8') return error.InvalidSpriteName;
-
-            // For numeric frames, only allow rotation 0
-            if (frame >= '0' and frame <= '9' and rotation != '0') {
-                return error.InvalidSpriteName;
-            }
-
-            return SpriteName{
-                .prefix = name[0..4].*,
-                .frame = frame,
-                .rotation = rotation - '0',
-                .is_mirrored = false,
-                .mirror_rotation = 0,
-            };
-        }
-        // Handle 8 character cases
-        else {
-            // Validate first frame (A-Z or 0-9)
-            const frame = name[4];
-            if (!((frame >= 'A' and frame <= 'Z') or (frame >= '0' and frame <= '9'))) {
-                return error.InvalidSpriteName;
-            }
-
-            // For numeric frames, only allow rotation 0
-            if (frame >= '0' and frame <= '9') {
-                if (name[5] != '0' or name[7] != '0') {
-                    return error.InvalidSpriteName;
-                }
-
-                return SpriteName{
-                    .prefix = name[0..4].*,
-                    .frame = frame,
-                    .rotation = 0,
-                    .is_mirrored = true,
-                    .mirror_rotation = 0,
-                };
-            }
-
-            // Validate first rotation
-            const rotation1 = name[5];
-            if (rotation1 < '0' or rotation1 > '8') {
-                return error.InvalidSpriteName;
-            }
-
-            // Check if this is a combined sprite name (e.g. "SPIDA1D1")
-            const frame2 = name[6];
-            if ((frame2 >= 'A' and frame2 <= 'Z') and name[7] >= '0' and name[7] <= '8') {
-                // This is a combined sprite name - treat it like a standard sprite using the first frame/rotation
-                return SpriteName{
-                    .prefix = name[0..4].*,
-                    .frame = frame,
-                    .rotation = rotation1 - '0',
-                    .is_mirrored = false,
-                    .mirror_rotation = 0,
-                };
-            }
-
-            // Handle mirrored case (e.g. "TROOA2A8")
-            if (frame2 == frame) {
-                const rotation2 = name[7];
-                if (rotation2 < '0' or rotation2 > '8') {
-                    return error.InvalidSpriteName;
-                }
-
-                return SpriteName{
-                    .prefix = name[0..4].*,
-                    .frame = frame,
-                    .rotation = rotation1 - '0',
-                    .is_mirrored = true,
-                    .mirror_rotation = rotation2 - '0',
-                };
-            }
-
+        // Validate first frame (A-Z or 0-9)
+        if (!((first_frame >= 'A' and first_frame <= 'Z') or (first_frame >= '0' and first_frame <= '9'))) {
             return error.InvalidSpriteName;
         }
+
+        // Validate first rotation (0-8)
+        if (first_rotation < '0' or first_rotation > '8') return error.InvalidSpriteName;
+
+        // For numeric frames, only allow rotation 0
+        if (first_frame >= '0' and first_frame <= '9' and first_rotation != '0') {
+            return error.InvalidSpriteName;
+        }
+
+        // Handle standard case (6 characters, e.g. "TROOA1" or "TROOK0")
+        if (name.len == 6) {
+            return SpriteName{
+                .prefix = name[0..4].*,
+                .first = .{
+                    .frame = first_frame,
+                    .rotation = first_rotation - '0',
+                },
+                .second = null,
+            };
+        }
+
+        // Handle 8 character cases
+        const second_frame = name[6];
+        const second_rotation = name[7];
+
+        // For numeric frames, only allow rotation 0
+        if (first_frame >= '0' and first_frame <= '9') {
+            if (second_rotation != '0') {
+                return error.InvalidSpriteName;
+            }
+            return SpriteName{
+                .prefix = name[0..4].*,
+                .first = .{
+                    .frame = first_frame,
+                    .rotation = 0,
+                },
+                .second = null,
+            };
+        }
+
+        // Validate second frame (A-Z)
+        if (second_frame < 'A' or second_frame > 'Z') {
+            return error.InvalidSpriteName;
+        }
+
+        // Validate second rotation (0-8)
+        if (second_rotation < '0' or second_rotation > '8') {
+            return error.InvalidSpriteName;
+        }
+
+        // For 8 character names, must have either different frame or different rotation
+        if (second_frame == first_frame and second_rotation == first_rotation) {
+            return error.InvalidSpriteName;
+        }
+
+        return SpriteName{
+            .prefix = name[0..4].*,
+            .first = .{
+                .frame = first_frame,
+                .rotation = first_rotation - '0',
+            },
+            .second = .{
+                .frame = second_frame,
+                .rotation = second_rotation - '0',
+            },
+        };
     }
 
     pub fn format(
@@ -212,13 +223,11 @@ pub const SpriteName = struct {
         _ = fmt;
         _ = options;
         try writer.writeAll(&self.prefix);
-        try writer.writeByte(self.frame);
-        if (self.is_mirrored) {
-            try writer.writeByte(self.rotation + '0');
-            try writer.writeByte(self.frame);
-            try writer.writeByte(self.mirror_rotation + '0');
-        } else {
-            try writer.writeByte(self.rotation + '0');
+        try writer.writeByte(self.first.frame);
+        try writer.writeByte(self.first.rotation + '0');
+        if (self.second) |second| {
+            try writer.writeByte(second.frame);
+            try writer.writeByte(second.rotation + '0');
         }
     }
 };
@@ -254,7 +263,7 @@ pub const Sprite = struct {
         self.animation = try SpriteAnimation.init(
             self.picture.allocator,
             &self.name.prefix,
-            self.name.rotation,
+            self.name.first.rotation,
             frame_sequence,
         );
     }
@@ -306,9 +315,10 @@ pub const Sprite = struct {
     pub fn getPixel(self: *const Sprite, x: u32, y: u32, rotation: ?u8) ?u8 {
         // If a rotation is specified and this is a mirrored sprite,
         // check if we need to flip the x coordinate
-        if (rotation != null and self.name.is_mirrored) {
-            if (rotation.? == self.name.mirror_rotation) {
-                // Flip x coordinate for mirrored rotation
+        if (rotation != null and self.name.hasSecondPair()) {
+            if (rotation.? == self.name.second.?.rotation) {
+                // For sprites with alternate frames, we should already have
+                // the correct sprite instance for this rotation
                 const flipped_x = @as(u32, @intCast(self.picture.header.width)) - 1 - x;
                 return self.picture.getPixel(flipped_x, y);
             }
@@ -359,23 +369,72 @@ test {
 }
 
 test "parse valid sprite names" {
+    // Test numeric frame sprite name
+    {
+        const name = try SpriteName.parse("TROO10");
+        std.debug.print("\nNumeric frame test:\n", .{});
+        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
+        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
+        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
+        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
+        try std.testing.expectEqualSlices(u8, "TROO", &name.prefix);
+        try std.testing.expectEqual(@as(u8, '1'), name.first.frame);
+        try std.testing.expectEqual(@as(u8, 0), name.first.rotation);
+        try std.testing.expectEqual(false, name.hasSecondPair());
+    }
+
     // Test standard sprite name
     {
         const name = try SpriteName.parse("TROOA1");
+        std.debug.print("\nStandard sprite test:\n", .{});
+        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
+        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
+        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
+        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
         try std.testing.expectEqualSlices(u8, "TROO", &name.prefix);
-        try std.testing.expectEqual(@as(u8, 'A'), name.frame);
-        try std.testing.expectEqual(@as(u8, 1), name.rotation);
-        try std.testing.expectEqual(false, name.is_mirrored);
+        try std.testing.expectEqual(@as(u8, 'A'), name.first.frame);
+        try std.testing.expectEqual(@as(u8, 1), name.first.rotation);
+        try std.testing.expectEqual(false, name.hasSecondPair());
     }
 
-    // Test mirrored sprite name
+    // Test mirrored sprite name with same frame
     {
         const name = try SpriteName.parse("TROOA2A8");
+        std.debug.print("\nMirrored sprite test:\n", .{});
+        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
+        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
+        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
+        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
         try std.testing.expectEqualSlices(u8, "TROO", &name.prefix);
-        try std.testing.expectEqual(@as(u8, 'A'), name.frame);
-        try std.testing.expectEqual(@as(u8, 2), name.rotation);
-        try std.testing.expectEqual(true, name.is_mirrored);
-        try std.testing.expectEqual(@as(u8, 8), name.mirror_rotation);
+        try std.testing.expectEqual(@as(u8, 'A'), name.first.frame);
+        try std.testing.expectEqual(@as(u8, 2), name.first.rotation);
+        try std.testing.expectEqual(true, name.hasSecondPair());
+        try std.testing.expectEqual(true, name.hasDifferentRotation());
+        try std.testing.expectEqual(false, name.hasAlternateFrame());
+        if (name.second) |second| {
+            try std.testing.expectEqual(@as(u8, 'A'), second.frame);
+            try std.testing.expectEqual(@as(u8, 8), second.rotation);
+        }
+    }
+
+    // Test mirrored sprite name with alternate frame
+    {
+        const name = try SpriteName.parse("SPIDA1D1");
+        std.debug.print("\nAlternate frame test:\n", .{});
+        std.debug.print("  has_alternate_frame: {}\n", .{name.hasAlternateFrame()});
+        std.debug.print("  has_different_rotation: {}\n", .{name.hasDifferentRotation()});
+        std.debug.print("  second_frame: {?}\n", .{if (name.second) |s| s.frame else null});
+        std.debug.print("  second_rotation: {?}\n", .{if (name.second) |s| s.rotation else null});
+        try std.testing.expectEqualSlices(u8, "SPID", &name.prefix);
+        try std.testing.expectEqual(@as(u8, 'A'), name.first.frame);
+        try std.testing.expectEqual(@as(u8, 1), name.first.rotation);
+        try std.testing.expectEqual(true, name.hasSecondPair());
+        try std.testing.expectEqual(false, name.hasDifferentRotation());
+        try std.testing.expectEqual(true, name.hasAlternateFrame());
+        if (name.second) |second| {
+            try std.testing.expectEqual(@as(u8, 'D'), second.frame);
+            try std.testing.expectEqual(@as(u8, 1), second.rotation);
+        }
     }
 }
 
@@ -487,4 +546,117 @@ test "load and render mirrored sprite" {
         try std.testing.expectEqual(@as(u32, 0xFF0000FF), pixels[1]); // First pixel (flipped)
         try std.testing.expectEqual(@as(u32, 0xFF0000FF), pixels[3]); // Second pixel (flipped)
     }
+}
+
+test "sprite animation with mirrored frames" {
+    const allocator = std.testing.allocator;
+
+    // Create test data using the Picture format
+    const column_data = [_]u8{
+        0x00, // row
+        0x02, // length
+        0x00, // padding
+        0x01, 0x02, // pixel data
+        0x00, // padding
+        0xFF, // end of column marker
+    };
+
+    var picture_data = std.ArrayList(u8).init(allocator);
+    defer picture_data.deinit();
+
+    // Write header
+    try picture_data.writer().writeInt(i16, 2, .little); // width = 2 to test mirroring
+    try picture_data.writer().writeInt(i16, 2, .little); // height
+    try picture_data.writer().writeInt(i16, 0, .little); // left_offset
+    try picture_data.writer().writeInt(i16, 0, .little); // top_offset
+
+    // Calculate offsets
+    const header_size = @sizeOf(Header);
+    const column_offsets_size = 2 * 4; // 2 columns * 4 bytes per offset
+    const first_column_offset = header_size + column_offsets_size;
+    const second_column_offset = first_column_offset + column_data.len;
+
+    // Write column offsets
+    try picture_data.writer().writeInt(u32, first_column_offset, .little); // first column
+    try picture_data.writer().writeInt(u32, second_column_offset, .little); // second column
+
+    // Write column data for both columns
+    try picture_data.appendSlice(&column_data);
+    try picture_data.appendSlice(&column_data);
+
+    // Load sprite with mirrored name
+    var sprite_obj = try Sprite.load(allocator, picture_data.items, "TROOA2A8");
+    defer sprite_obj.deinit();
+
+    // Set up animation with frame sequence
+    try sprite_obj.setupAnimation(&[_]u8{ 'A', 'B', 'C' });
+
+    // Test animation state
+    try std.testing.expectEqual(false, sprite_obj.animation.?.is_playing);
+    try std.testing.expectEqual(@as(usize, 0), sprite_obj.animation.?.current_frame);
+    try std.testing.expectEqual(@as(u8, 'A'), sprite_obj.animation.?.getCurrentFrame());
+
+    // Test frame advancement
+    sprite_obj.play();
+    try std.testing.expectEqual(true, sprite_obj.animation.?.is_playing);
+    sprite_obj.update();
+    try std.testing.expectEqual(@as(u8, 'A'), sprite_obj.animation.?.getCurrentFrame());
+
+    // Test pixel access for mirrored rotation
+    try std.testing.expectEqual(@as(?u8, 1), sprite_obj.getPixel(0, 0, 2)); // Original rotation
+    try std.testing.expectEqual(@as(?u8, 1), sprite_obj.getPixel(1, 0, 8)); // Mirrored rotation
+}
+
+test "sprite animation with alternate frames" {
+    const allocator = std.testing.allocator;
+
+    // Create test data using the Picture format
+    const column_data = [_]u8{
+        0x00, // row
+        0x02, // length
+        0x00, // padding
+        0x01, 0x02, // pixel data
+        0x00, // padding
+        0xFF, // end of column marker
+    };
+
+    var picture_data = std.ArrayList(u8).init(allocator);
+    defer picture_data.deinit();
+
+    // Write header
+    try picture_data.writer().writeInt(i16, 2, .little); // width = 2 to test mirroring
+    try picture_data.writer().writeInt(i16, 2, .little); // height
+    try picture_data.writer().writeInt(i16, 0, .little); // left_offset
+    try picture_data.writer().writeInt(i16, 0, .little); // top_offset
+
+    // Calculate offsets
+    const header_size = @sizeOf(Header);
+    const column_offsets_size = 2 * 4; // 2 columns * 4 bytes per offset
+    const first_column_offset = header_size + column_offsets_size;
+    const second_column_offset = first_column_offset + column_data.len;
+
+    // Write column offsets
+    try picture_data.writer().writeInt(u32, first_column_offset, .little); // first column
+    try picture_data.writer().writeInt(u32, second_column_offset, .little); // second column
+
+    // Write column data for both columns
+    try picture_data.appendSlice(&column_data);
+    try picture_data.appendSlice(&column_data);
+
+    // Load sprite with alternate frame name
+    var sprite_obj = try Sprite.load(allocator, picture_data.items, "SPIDA1D1");
+    defer sprite_obj.deinit();
+
+    // Set up animation with frame sequence
+    try sprite_obj.setupAnimation(&[_]u8{ 'A', 'B', 'C' });
+
+    // Test sprite name parsing
+    try std.testing.expectEqual(true, sprite_obj.name.hasAlternateFrame());
+    try std.testing.expectEqual(@as(u8, 'D'), sprite_obj.name.second.?.frame);
+    try std.testing.expectEqual(@as(u8, 1), sprite_obj.name.first.rotation);
+    try std.testing.expectEqual(@as(u8, 1), sprite_obj.name.second.?.rotation);
+
+    // Test pixel access for alternate frame rotation
+    try std.testing.expectEqual(@as(?u8, 1), sprite_obj.getPixel(0, 0, 1)); // Original rotation
+    try std.testing.expectEqual(@as(?u8, 1), sprite_obj.getPixel(1, 0, 1)); // Mirrored rotation with alternate frame
 }
