@@ -1,5 +1,6 @@
 const std = @import("std");
 const wad = @import("wad.zig");
+const patch = @import("graphics/patch.zig");
 
 /// DOOM's PLAYPAL lump contains 14 256-color palettes
 /// Each palette is 768 bytes (256 RGB triplets)
@@ -86,9 +87,40 @@ pub const Colormap = struct {
     }
 };
 
+/// Special patches used in DOOM's menu and UI
+pub const MenuPatches = struct {
+    title_screen: ?*patch.Patch,
+    allocator: std.mem.Allocator,
+
+    pub fn load(allocator: std.mem.Allocator, wad_file: *wad.WadFile) !MenuPatches {
+        var title_screen: ?*patch.Patch = null;
+
+        // Load TITLEPIC
+        if (try wad_file.readLumpByName("TITLEPIC")) |title_data| {
+            defer allocator.free(title_data);
+            const patch_ptr = try allocator.create(patch.Patch);
+            patch_ptr.* = try patch.Patch.load(allocator, title_data);
+            title_screen = patch_ptr;
+        }
+
+        return MenuPatches{
+            .title_screen = title_screen,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *MenuPatches) void {
+        if (self.title_screen) |title_ptr| {
+            title_ptr.deinit();
+            self.allocator.destroy(title_ptr);
+        }
+    }
+};
+
 pub const DoomTextureError = error{
     PlaypalNotFound,
     ColormapNotFound,
     InvalidPlaypalSize,
     InvalidColormapSize,
+    MenuPatchError,
 };

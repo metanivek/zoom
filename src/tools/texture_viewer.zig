@@ -342,7 +342,7 @@ pub fn main() !void {
                     const current_patch_obj = &patch_entry.patch;
 
                     // Render patch using our new render function
-                    const surface = current_patch_obj.render(&texture_manager.playpal.?, current_palette) catch |err| {
+                    const surface = current_patch_obj.render(texture_manager.playpal.?, current_palette) catch |err| {
                         std.debug.print("Failed to render patch: {any}\n", .{err});
                         continue;
                     };
@@ -562,7 +562,7 @@ pub fn main() !void {
 
                     if (found_sprite) |sprite_obj| {
                         // Render sprite
-                        const surface = sprite_obj.render(&texture_manager.playpal.?, current_palette, current_rotation) catch |err| {
+                        const surface = sprite_obj.render(texture_manager.playpal.?, current_palette, current_rotation) catch |err| {
                             std.debug.print("Failed to render sprite: {any}\n", .{err});
                             continue;
                         };
@@ -669,7 +669,7 @@ pub fn main() !void {
                     const current_flat_obj = &flat_entry.flat;
 
                     // Render flat using our render function
-                    const surface = current_flat_obj.render(&texture_manager.playpal.?, current_palette) catch |err| {
+                    const surface = current_flat_obj.render(texture_manager.playpal.?, current_palette) catch |err| {
                         std.debug.print("Failed to render flat: {any}\n", .{err});
                         continue;
                     };
@@ -725,7 +725,7 @@ pub fn main() !void {
                     const texture_obj = &texture_entry.texture;
 
                     // Render the composite texture
-                    const surface = texture_obj.render(&texture_manager, &texture_manager.playpal.?, current_palette) catch |err| {
+                    const surface = texture_obj.render(&texture_manager, texture_manager.playpal.?, current_palette) catch |err| {
                         std.debug.print("Failed to render texture: {any}\n", .{err});
                         continue;
                     };

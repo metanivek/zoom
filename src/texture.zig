@@ -103,8 +103,9 @@ pub const TextureManager = struct {
     flats: std.ArrayList(FlatEntry),
     composite_textures: std.ArrayList(CompositeTextureEntry),
     allocator: std.mem.Allocator,
-    playpal: ?doom_textures.Playpal = null,
-    colormap: ?doom_textures.Colormap = null,
+    playpal: ?*doom_textures.Playpal = null,
+    colormap: ?*doom_textures.Colormap = null,
+    menu_patches: ?*doom_textures.MenuPatches = null,
     patch_names: ?composite_texture.PatchNames = null,
 
     pub fn init(allocator: std.mem.Allocator) TextureManager {
@@ -115,6 +116,10 @@ pub const TextureManager = struct {
             .flats = std.ArrayList(FlatEntry).init(allocator),
             .composite_textures = std.ArrayList(CompositeTextureEntry).init(allocator),
             .allocator = allocator,
+            .playpal = null,
+            .colormap = null,
+            .menu_patches = null,
+            .patch_names = null,
         };
     }
 
@@ -149,19 +154,36 @@ pub const TextureManager = struct {
         }
         self.composite_textures.deinit();
 
-        if (self.playpal) |*pal| pal.deinit();
-        if (self.colormap) |*cmap| cmap.deinit();
+        if (self.playpal) |pal| {
+            pal.deinit();
+            self.allocator.destroy(pal);
+        }
+        if (self.colormap) |cmap| {
+            cmap.deinit();
+            self.allocator.destroy(cmap);
+        }
+        if (self.menu_patches) |menu| {
+            menu.deinit();
+            self.allocator.destroy(menu);
+        }
         if (self.patch_names) |*pnames| pnames.deinit();
     }
 
     pub fn loadFromWad(self: *TextureManager, wad_file: *wad.WadFile) !void {
         // Load PLAYPAL
-        self.playpal = try doom_textures.Playpal.load(self.allocator, wad_file);
-        errdefer if (self.playpal) |*pal| pal.deinit();
+        const playpal_ptr = try self.allocator.create(doom_textures.Playpal);
+        playpal_ptr.* = try doom_textures.Playpal.load(self.allocator, wad_file);
+        self.playpal = playpal_ptr;
 
         // Load COLORMAP
-        self.colormap = try doom_textures.Colormap.load(self.allocator, wad_file);
-        errdefer if (self.colormap) |*cmap| cmap.deinit();
+        const colormap_ptr = try self.allocator.create(doom_textures.Colormap);
+        colormap_ptr.* = try doom_textures.Colormap.load(self.allocator, wad_file);
+        self.colormap = colormap_ptr;
+
+        // Load menu patches
+        const menu_ptr = try self.allocator.create(doom_textures.MenuPatches);
+        menu_ptr.* = try doom_textures.MenuPatches.load(self.allocator, wad_file);
+        self.menu_patches = menu_ptr;
 
         // Load PNAMES
         if (try wad_file.readLumpByName("PNAMES")) |pnames_data| {

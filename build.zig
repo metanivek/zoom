@@ -42,6 +42,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     exe.root_module.addImport("lib", lib_module);
+    exe.linkSystemLibrary("SDL2");
     exe.linkLibC();
     b.installArtifact(exe);
 

@@ -2,11 +2,12 @@
 
 const std = @import("std");
 const c = @cImport({
-    @cInclude("SDL2/SDL.h");
+    @cInclude("SDL.h");
 });
 const texture = @import("texture.zig");
 const TextureManager = texture.TextureManager;
 const wad = @import("wad.zig");
+const patch = @import("graphics/patch.zig");
 
 const GameState = struct {
     quit: bool = false,
@@ -67,8 +68,8 @@ pub fn main() !void {
     }
     defer c.SDL_Quit();
 
-    const SCREEN_WIDTH = 800;
-    const SCREEN_HEIGHT = 600;
+    const SCREEN_WIDTH = 640;
+    const SCREEN_HEIGHT = 400;
 
     // Create window
     const window = c.SDL_CreateWindow(
@@ -123,7 +124,32 @@ pub fn main() !void {
         _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         _ = c.SDL_RenderClear(renderer);
 
-        // TODO: Implement DOOM rendering
+        // Render title screen if available
+        if (game_state.texture_manager.menu_patches) |menu| {
+            if (menu.title_screen) |title| {
+                const surface = title.render(game_state.texture_manager.playpal.?, 0) catch |err| {
+                    std.debug.print("Failed to render title: {any}\n", .{err});
+                    continue;
+                };
+                defer c.SDL_FreeSurface(@ptrCast(surface));
+
+                const title_texture = c.SDL_CreateTextureFromSurface(renderer, @ptrCast(surface)) orelse {
+                    std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
+                    continue;
+                };
+                defer c.SDL_DestroyTexture(title_texture);
+
+                // Calculate centered position
+                const dest_rect = c.SDL_Rect{
+                    .x = @divTrunc(@as(i32, SCREEN_WIDTH) - @as(i32, @intCast(title.picture.header.width * 2)), 2),
+                    .y = @divTrunc(@as(i32, SCREEN_HEIGHT) - @as(i32, @intCast(title.picture.header.height * 2)), 2),
+                    .w = @intCast(title.picture.header.width * 2),
+                    .h = @intCast(title.picture.header.height * 2),
+                };
+
+                _ = c.SDL_RenderCopy(renderer, title_texture, null, &dest_rect);
+            }
+        }
 
         // Present the rendered frame
         c.SDL_RenderPresent(renderer);
